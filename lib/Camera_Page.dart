@@ -1,22 +1,18 @@
-import 'package:image/image.dart' as img;
-import 'dart:typed_data';
-import 'dart:math';
+//Camera_Page.dart
+
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import 'dart:async';
-import 'dart:math' as math;
-import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 import 'package:uuid/uuid.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import './models/session.dart';
+import './models/session_model.dart';
 import './services/session_service.dart';
-import 'Dashboard_Page.dart';
-import 'package:crypto/crypto.dart';
-
+import './services/tflite_service.dart';
 
 class DetectionResult {
   final String label;
@@ -28,395 +24,19 @@ class DetectionResult {
     required this.confidence,
     required this.boundingBox,
   });
-}
 
-class MLKitDetector {
-  ObjectDetector? _detector;
-  List<String> _labels = [];
-  static const double confidenceThreshold = 0.3;
-  static const int inputSize = 640;
-  Map<String, int> objectCounts = {};
-
-  // ImageNet normalization parameters
-  static const double meanR = 0.485;
-  static const double meanG = 0.456;
-  static const double meanB = 0.406;
-  static const double stdR = 0.229;
-  static const double stdG = 0.224;
-  static const double stdB = 0.225;
-
-  // Function to preprocess and normalize image
-  img.Image preprocessImage(img.Image image) {
-    try {
-      // Resize the image to match the model's expected input size
-      image = img.copyResize(
-        image,
-        width: inputSize,
-        height: inputSize,
-        interpolation: img.Interpolation.linear
-      );
-
-      // Validate image dimensions
-      if (image.width != inputSize || image.height != inputSize) {
-        throw Exception('Invalid image dimensions after resizing: ${image.width}x${image.height}');
-      }
-
-      // Create a new image for normalized values
-      final normalizedImage = img.Image(width: inputSize, height: inputSize);
-
-      // Normalize pixel values to [0, 1] range
-      for (int y = 0; y < image.height; y++) {
-        for (int x = 0; x < image.width; x++) {
-          final pixel = image.getPixel(x, y);
-          
-          // Extract RGB values using pixel properties
-          final r = pixel.rNormalized;  // Already in range 0.0-1.0
-          final g = pixel.gNormalized;
-          final b = pixel.bNormalized;
-          
-          // Apply ImageNet normalization
-          final normalizedR = ((r - meanR) / stdR).clamp(0.0, 1.0);
-          final normalizedG = ((g - meanG) / stdG).clamp(0.0, 1.0);
-          final normalizedB = ((b - meanB) / stdB).clamp(0.0, 1.0);
-          
-          // Convert back to [0, 255] range for image storage
-          final int finalR = (normalizedR * 255).round();
-          final int finalG = (normalizedG * 255).round();
-          final int finalB = (normalizedB * 255).round();
-          
-          // Set normalized pixel values
-          normalizedImage.setPixelRgba(x, y, finalR, finalG, finalB, 255);
-        }
-      }
-
-      return normalizedImage;
-    } catch (e) {
-      print('Error in preprocessImage: $e');
-      rethrow;
-    }
-  }
-
-  // Function to compute SHA-256 hash of a file
-  Future<String> _computeFileHash(File file) async {
-    try {
-      final bytes = await file.readAsBytes();
-      final hash = sha256.convert(bytes);
-      return hash.toString();
-    } catch (e) {
-      print('Error computing file hash: $e');
-      rethrow;
-    }
-  }
-
-  Future<String> _getLocalPath(String assetPath) async {
-    try {
-      // Get the model file from assets
-      final modelData = await rootBundle.load('assets/$assetPath');
-      final bytes = modelData.buffer.asUint8List();
-
-      // Get the app's local directory
-      final appDir = await getApplicationDocumentsDirectory();
-      final modelFile = File('${appDir.path}/$assetPath');
-
-      // Create the directory if it doesn't exist
-      if (!await modelFile.parent.exists()) {
-        await modelFile.parent.create(recursive: true);
-      }
-
-      // Check if model file exists and verify its integrity
-      if (await modelFile.exists()) {
-        // Compute hash of existing file
-        final existingHash = await _computeFileHash(modelFile);
-        // Compute hash of new file
-        final newHash = sha256.convert(bytes).toString();
-        
-        if (existingHash == newHash) {
-          print('Model file exists and is valid at: ${modelFile.path}');
-          return modelFile.path;
-        } else {
-          print('Model file exists but is invalid. Replacing...');
-          await modelFile.delete();
-        }
-      }
-
-      // Write the model to local storage
-      await modelFile.writeAsBytes(bytes);
-      print('Model copied to: ${modelFile.path}');
-      
-      // Verify the written file
-      final writtenHash = await _computeFileHash(modelFile);
-      final expectedHash = sha256.convert(bytes).toString();
-      
-      if (writtenHash != expectedHash) {
-        throw Exception('Model file integrity check failed');
-      }
-
-      return modelFile.path;
-    } catch (e) {
-      print('Error copying model file: $e');
-      rethrow;
-    }
-  }
-
-  Future<InputImage> _preprocessImage(String imagePath) async {
-    File? tempFile;
-    try {
-      final File imageFile = File(imagePath);
-      if (!await imageFile.exists()) {
-        throw Exception('Image file not found: $imagePath');
-      }
-
-      // Verify file size
-      final fileSize = await imageFile.length();
-      if (fileSize == 0) {
-        throw Exception('Image file is empty: $imagePath');
-      }
-      print('Original image file size: $fileSize bytes');
-
-      // Verify file is a valid image
-      final bytes = await imageFile.readAsBytes();
-      final img.Image? originalImage = img.decodeImage(bytes);
-      if (originalImage == null) {
-        throw Exception('Failed to decode image: Invalid image format');
-      }
-
-      print('Original image size: ${originalImage.width}x${originalImage.height}');
-      if (originalImage.width == 0 || originalImage.height == 0) {
-        throw Exception('Invalid image dimensions: ${originalImage.width}x${originalImage.height}');
-      }
-
-      // Calculate scaling to maintain aspect ratio
-      double scale = inputSize / math.max(originalImage.width, originalImage.height);
-      int newWidth = (originalImage.width * scale).round();
-      int newHeight = (originalImage.height * scale).round();
-
-      // Resize the image while maintaining aspect ratio
-      final img.Image resizedImage = img.copyResize(
-        originalImage,
-        width: newWidth,
-        height: newHeight,
-        interpolation: img.Interpolation.linear
-      );
-
-      print('Resized image size: ${resizedImage.width}x${resizedImage.height}');
-
-      // Create a new black image with padding
-      final img.Image paddedImage = img.Image(width: inputSize, height: inputSize);
-
-      // Fill with black padding
-      for (int y = 0; y < inputSize; y++) {
-        for (int x = 0; x < inputSize; x++) {
-          paddedImage.setPixelRgba(x, y, 0, 0, 0, 255);
-        }
-      }
-
-      // Calculate padding
-      int xOffset = ((inputSize - newWidth) / 2).round();
-      int yOffset = ((inputSize - newHeight) / 2).round();
-
-      // Copy the resized image onto the padded image
-      for (int y = 0; y < resizedImage.height; y++) {
-        for (int x = 0; x < resizedImage.width; x++) {
-          final pixel = resizedImage.getPixel(x, y);
-          // Extract RGB values using pixel properties
-          final r = pixel.r;  // Already in range 0-255
-          final g = pixel.g;
-          final b = pixel.b;
-          final a = pixel.a;
-          
-          paddedImage.setPixelRgba(x + xOffset, y + yOffset, r, g, b, a);
-        }
-      }
-
-      // Apply normalization to the padded image
-      final normalizedImage = preprocessImage(paddedImage);
-
-      // Save the preprocessed image to a temporary file
-      final Directory tempDir = await getTemporaryDirectory();
-      final String tempPath = '${tempDir.path}/preprocessed_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      tempFile = File(tempPath);
-      
-      // Write file synchronously to ensure it's complete before processing
-      final jpgBytes = img.encodeJpg(normalizedImage, quality: 100);
-      await tempFile.writeAsBytes(jpgBytes);
-      
-      // Verify the written file
-      if (!await tempFile.exists()) {
-        throw Exception('Failed to save preprocessed image');
-      }
-      
-      final processedFileSize = await tempFile.length();
-      if (processedFileSize == 0) {
-        throw Exception('Preprocessed image file is empty');
-      }
-      
-      // Verify the saved file can be decoded
-      final savedImage = img.decodeImage(await tempFile.readAsBytes());
-      if (savedImage == null) {
-        throw Exception('Failed to verify saved preprocessed image');
-      }
-      
-      print('Preprocessed image saved to: $tempPath');
-      print('Preprocessed image size: ${normalizedImage.width}x${normalizedImage.height}');
-      print('Preprocessed file size: $processedFileSize bytes');
-
-      // Create InputImage from File object
-      return InputImage.fromFile(tempFile);
-    } catch (e) {
-      print('Error preprocessing image: $e');
-      // Clean up temporary file if it exists
-      if (tempFile != null && await tempFile.exists()) {
-        try {
-          await tempFile.delete();
-          print('Cleaned up temporary file after error');
-        } catch (e) {
-          print('Failed to clean up temporary file: $e');
-        }
-      }
-      rethrow;
-    }
-  }
-
-  Future<void> loadModel() async {
-    try {
-      // Load labels
-      final labelData = await rootBundle.loadString('assets/label.txt');
-      _labels = labelData.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-      print('Labels loaded: $_labels');
-
-      // Initialize counts
-      for (var label in _labels) {
-        objectCounts[label] = 0;
-      }
-
-      // Get model path from assets
-      final modelPath = await _getLocalPath('model.tflite');
-      print('Model path: $modelPath');
-
-      final options = LocalObjectDetectorOptions(
-        mode: DetectionMode.stream,
-        modelPath: modelPath,
-        classifyObjects: true,
-        multipleObjects: true,
-        confidenceThreshold: confidenceThreshold,
-      );
-      
-      _detector = ObjectDetector(options: options);
-      print('✅ Model loaded successfully');
-    } catch (e, stackTrace) {
-      print('❌ Error loading model: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<(List<DetectionResult>, Map<String, int>)> detectObjects(String imagePath) async {
-    File? tempFile;
-    try {
-      print('\n=== Starting detection ===');
-      print('Processing image: $imagePath');
-      
-      if (_detector == null) {
-        print('Initializing detector...');
-        await loadModel();
-        if (_detector == null) {
-          throw Exception('Failed to initialize detector');
-        }
-      }
-      
-      // Verify input file exists and is valid
-      final inputFile = File(imagePath);
-      if (!await inputFile.exists()) {
-        throw Exception('Input image file not found: $imagePath');
-      }
-      
-      final inputFileSize = await inputFile.length();
-      if (inputFileSize == 0) {
-        throw Exception('Input image file is empty');
-      }
-      print('Input file size: $inputFileSize bytes');
-      
-      // Reset counts for new detection
-      objectCounts.updateAll((key, value) => 0);
-      
-      // Preprocess the image
-      final inputImage = await _preprocessImage(imagePath);
-      print('Image preprocessed successfully');
-      
-      // Store reference to temporary file for cleanup
-      tempFile = File(inputImage.filePath!);
-      
-      // Verify the preprocessed image file
-      if (!await tempFile.exists()) {
-        throw Exception('Preprocessed image file not found: ${inputImage.filePath}');
-      }
-      
-      final preprocessedFileSize = await tempFile.length();
-      if (preprocessedFileSize == 0) {
-        throw Exception('Preprocessed image file is empty');
-      }
-      print('Preprocessed file size: $preprocessedFileSize bytes');
-      
-      // Process the image
-      print('Starting object detection...');
-      final List<DetectedObject> objects = await _detector!.processImage(inputImage);
-      print('Raw detections: ${objects.length} objects found');
-      
-      final List<DetectionResult> results = objects.map((object) {
-        final rect = object.boundingBox;
-        String label = 'Unknown';
-        double confidence = 0.0;
-        
-        if (object.labels.isNotEmpty) {
-          final bestLabel = object.labels.reduce((a, b) => a.confidence > b.confidence ? a : b);
-          label = bestLabel.text;
-          confidence = bestLabel.confidence;
-          
-          // Increment count for this class
-          objectCounts[label] = (objectCounts[label] ?? 0) + 1;
-          
-          print('Detection: $label with confidence ${(confidence * 100).toStringAsFixed(5)}%');
-        }
-        
-        return DetectionResult(
-          label: label,
-          confidence: confidence,
-          boundingBox: rect,
-        );
-      }).where((result) => result.confidence >= confidenceThreshold).toList();
-
-      // Print counts
-      objectCounts.forEach((label, count) {
-        if (count > 0) {
-          print('Counted $count $label');
-        }
-      });
-
-      print('Detection complete. Found ${results.length} valid objects');
-      
-      // Create a new Map<String, int> with the correct types
-      final Map<String, int> typedCounts = Map<String, int>.from(objectCounts);
-      
-      return (results, typedCounts);
-    } catch (e, stackTrace) {
-      print('❌ Error during detection: $e');
-      print('Stack trace: $stackTrace');
-      return (<DetectionResult>[], <String, int>{});
-    } finally {
-      // Clean up temporary file
-      if (tempFile != null && await tempFile.exists()) {
-        try {
-          await tempFile.delete();
-          print('Temporary file cleaned up successfully');
-        } catch (e) {
-          print('Warning: Could not delete temporary file: $e');
-        }
-      }
-    }
-  }
-
-  void dispose() {
-    _detector?.close();
+  // Factory constructor to create DetectionResult from TFLite detection
+  factory DetectionResult.fromTFLiteDetection(Map<String, double> detection) {
+    return DetectionResult(
+      label: 'Fish',
+      confidence: detection['confidence']!,
+      boundingBox: Rect.fromLTRB(
+        detection['x1']!,
+        detection['y1']!,
+        detection['x2']!,
+        detection['y2']!,
+      ),
+    );
   }
 }
 
@@ -442,32 +62,82 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription>? cameras;
   bool isProcessingImage = false;
+  List<DetectionResult> _detections = [];
+  Map<String, int> _counts = {};
   String timestamp = '';
   Timer? _timer;
+  final SessionService _sessionService = SessionService();
+  final TFLiteService _tfliteService = TFLiteService(); // Initialize TFLite service
   String? _lastCapturedImagePath;
+  StreamSubscription? _batchResultSubscription;
+
+  // Performance tracking
+  List<Duration> _processingTimes = [];
+  bool _isModelInitialized = false;
+  String _modelStatus = 'Initializing...';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
+    _initializeTFLiteService();
     _startTimestamp();
+    _setupBatchResultListener();
   }
 
   Future<void> _initializeCamera() async {
-    cameras = await availableCameras();
-    if (cameras != null && cameras!.isNotEmpty) {
-      _controller = CameraController(
-        cameras![0],
-        ResolutionPreset.high,
-        enableAudio: false,
-      );
+    try {
+      cameras = await availableCameras();
+      if (cameras != null && cameras!.isNotEmpty) {
+        _controller = CameraController(
+          cameras![0],
+          ResolutionPreset.high,
+          enableAudio: false,
+        );
 
-      await _controller?.initialize();
+        await _controller?.initialize();
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      print('Error initializing camera: $e');
       if (mounted) {
-        setState(() {});
+        setState(() {
+          _modelStatus = 'Camera initialization failed';
+        });
       }
     }
+  }
+
+  Future<void> _initializeTFLiteService() async {
+    try {
+      setState(() {
+        _modelStatus = 'Loading AI model...';
+      });
+      
+      await _tfliteService.initialize();
+      
+      setState(() {
+        _isModelInitialized = true;
+        _modelStatus = 'Model ready';
+      });
+      
+      print('TFLite service initialized successfully');
+    } catch (e) {
+      print('Error initializing TFLite service: $e');
+      setState(() {
+        _modelStatus = 'Model initialization failed: ${e.toString()}';
+      });
+    }
+  }
+
+  void _setupBatchResultListener() {
+    _batchResultSubscription = _tfliteService.batchResults.listen((batchResult) {
+      // Handle batch results if needed for bulk processing
+      print('Batch result received: ${batchResult.successCount} successes, ${batchResult.failureCount} failures');
+    });
   }
 
   void _startTimestamp() {
@@ -487,42 +157,176 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _captureImage() async {
+  Future<void> _captureAndDetect() async {
     if (isProcessingImage || _controller == null || !_controller!.value.isInitialized) {
+      return;
+    }
+
+    if (!_isModelInitialized) {
+      _showErrorSnackBar('AI model is not ready yet. Please wait...');
       return;
     }
 
     setState(() {
       isProcessingImage = true;
+      _detections = [];
     });
 
+    final processingStopwatch = Stopwatch()..start();
+
     try {
+      print('\n=== Starting capture and detection ===');
+      
+      // Capture image
       final XFile? imageFile = await _controller?.takePicture();
       if (imageFile == null) throw Exception('Failed to capture image');
 
+      // Save image to permanent location
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${appDir.path}/fish_images');
+      if (!await imagesDir.exists()) {
+        await imagesDir.create(recursive: true);
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final newPath = '${imagesDir.path}/${widget.batchId}_$timestamp.jpg';
+      final savedImage = await File(imageFile.path).copy(newPath);
+      _lastCapturedImagePath = newPath;
+      print('Image saved to: $newPath');
+
+      // Perform TFLite detection
+      final detectionCount = await _tfliteService.detectFingerlings(
+        savedImage,
+        confidenceThreshold: 0.5,
+        nmsThreshold: 0.4,
+      );
+
+      processingStopwatch.stop();
+      _processingTimes.add(processingStopwatch.elapsed);
+
+      // Keep only last 10 processing times for average calculation
+      if (_processingTimes.length > 10) {
+        _processingTimes.removeAt(0);
+      }
+
+      // Create detection results for visualization
+      // Note: The TFLiteService currently returns only count, but we can extend it to return full detection data
+      final mockDetections = _createMockDetectionsForVisualization(detectionCount);
+
+      setState(() {
+        _detections = mockDetections;
+        // Accumulate the fish count
+        _counts['Fish'] = (_counts['Fish'] ?? 0) + detectionCount;
+      });
+
       if (mounted) {
+        final processingTime = processingStopwatch.elapsedMilliseconds;
+        final avgProcessingTime = _processingTimes
+            .map((d) => d.inMilliseconds)
+            .reduce((a, b) => a + b) / _processingTimes.length;
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image captured successfully'),
+          SnackBar(
+            content: Text(
+              'Detected: $detectionCount fish (${processingTime}ms, avg: ${avgProcessingTime.toStringAsFixed(0)}ms)',
+            ),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
-      print('Error during capture: $e');
+      processingStopwatch.stop();
+      print('Error during capture and detection: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('Detection failed: ${e.toString()}');
       }
     } finally {
       if (mounted) {
         setState(() {
           isProcessingImage = false;
         });
+      }
+    }
+  }
+
+  // Helper method to create mock detections for visualization
+  // This should be replaced with actual detection data from TFLiteService
+  List<DetectionResult> _createMockDetectionsForVisualization(int count) {
+    final List<DetectionResult> detections = [];
+    
+    // Create mock bounding boxes for visualization
+    // In a real implementation, you'd modify TFLiteService to return detection coordinates
+    for (int i = 0; i < count && i < 20; i++) { // Limit to 20 for performance
+      detections.add(DetectionResult(
+        label: 'Fish',
+        confidence: 0.7 + (i * 0.05), // Mock confidence values
+        boundingBox: Rect.fromLTWH(
+          50.0 + (i * 30.0) % 300, // Mock x position
+          50.0 + (i * 25.0) % 200, // Mock y position
+          60.0, // Mock width
+          40.0, // Mock height
+        ),
+      ));
+    }
+    
+    return detections;
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _saveSession() async {
+    if (_lastCapturedImagePath == null) {
+      _showErrorSnackBar('No image captured yet!');
+      return;
+    }
+
+    try {
+      // Create and save Session for SharedPreferences
+      final session = Session(
+        id: const Uuid().v4(),
+        batchId: widget.batchId,
+        species: widget.species,
+        location: widget.location,
+        notes: widget.notes,
+        counts: Map<String, int>.from(_counts),
+        timestamp: timestamp,
+        imageUrl: _lastCapturedImagePath!,
+      );
+      await _sessionService.saveSession(session);
+
+      // Create and save SessionModel for Hive
+      final sessionModel = SessionModel(
+        batchId: widget.batchId,
+        species: widget.species,
+        location: widget.location,
+        notes: widget.notes,
+        date: DateTime.now(),
+        count: _counts.values.fold(0, (sum, count) => sum + count),
+      );
+      final sessionsBox = Hive.box<SessionModel>('sessions');
+      await sessionsBox.add(sessionModel);
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Close the modal
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false, // Remove all previous routes
+        );
+      }
+    } catch (e) {
+      print('Error saving session: $e');
+      if (mounted) {
+        _showErrorSnackBar('Error saving session: ${e.toString()}');
       }
     }
   }
@@ -545,8 +349,20 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                 Text('Location: ${widget.location}'),
                 const SizedBox(height: 8),
                 Text('Notes: ${widget.notes}'),
+                const SizedBox(height: 16),
+                const Text('Detected Counts:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ..._counts.entries
+                    .where((e) => e.value > 0)
+                    .map((e) => Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('${e.key}: ${e.value}'),
+                        )),
                 const SizedBox(height: 8),
                 Text('Time: $timestamp'),
+                if (_processingTimes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Avg Processing Time: ${_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length}ms'),
+                ],
               ],
             ),
           ),
@@ -556,15 +372,40 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/dashboard',
-                  (route) => false,
-                );
-              },
+              onPressed: _saveSession,
               child: const Text('Save Session'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPerformanceMetrics() {
+    final metrics = _tfliteService.getPerformanceMetrics();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Performance Metrics'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Total Processed: ${metrics['totalProcessed']}'),
+                Text('Average Processing Time: ${metrics['averageProcessingTime']?.toStringAsFixed(2) ?? 'N/A'}ms'),
+                Text('Cache Size: ${metrics['cacheSize']}'),
+                Text('Isolate Pool Size: ${metrics['isolatePoolSize']}'),
+                Text('Batch Queue Size: ${metrics['batchQueueSize'] ?? 'N/A'}'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
             ),
           ],
         );
@@ -575,8 +416,17 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_controller == null || !_controller!.value.isInitialized) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(_modelStatus),
+            ],
+          ),
+        ),
       );
     }
 
@@ -584,6 +434,69 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('Fingerlings Detection'),
         actions: [
+          // Model status indicator
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _isModelInitialized ? Colors.green : Colors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _isModelInitialized ? 'AI Ready' : 'Loading...',
+                style: const TextStyle(fontSize: 12, color: Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Count display
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.set_meal, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Total: ${_counts['Fish'] ?? 0}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Performance metrics button
+          IconButton(
+            icon: const Icon(Icons.analytics),
+            onPressed: _showPerformanceMetrics,
+            tooltip: 'Performance Metrics',
+          ),
+          // Reset count button
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _counts = {};
+                _detections = [];
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Count reset to 0'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            tooltip: 'Reset Count',
+          ),
+          // Save session button
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _showReviewModal,
@@ -600,8 +513,15 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             right: 0,
             child: Center(
               child: FloatingActionButton(
-                onPressed: isProcessingImage ? null : _captureImage,
-                child: Icon(isProcessingImage ? Icons.hourglass_empty : Icons.camera),
+                onPressed: (isProcessingImage || !_isModelInitialized) ? null : _captureAndDetect,
+                backgroundColor: _isModelInitialized ? null : Colors.grey,
+                child: Icon(
+                  isProcessingImage 
+                    ? Icons.hourglass_empty 
+                    : _isModelInitialized 
+                      ? Icons.camera 
+                      : Icons.warning
+                ),
               ),
             ),
           ),
@@ -614,12 +534,39 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                timestamp,
-                style: const TextStyle(color: Colors.white),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    timestamp,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  if (_processingTimes.isNotEmpty)
+                    Text(
+                      'Avg: ${_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length}ms',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                ],
               ),
             ),
           ),
+          if (isProcessingImage)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Processing image...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -627,68 +574,17 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _controller?.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-}
-
-class DetectionPainter extends CustomPainter {
-  final List<DetectionResult> detections;
-  final Size previewSize;
-  final Size screenSize;
-  late final TextPainter textPainter;
-
-  DetectionPainter({
-    required this.detections,
-    required this.previewSize,
-    required this.screenSize,
-  }) {
-    textPainter = TextPainter(
-      textAlign: TextAlign.left,
-      textDirection: ui.TextDirection.ltr,
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = Colors.green;
-
-    for (var detection in detections) {
-      final scaleX = screenSize.width / previewSize.width;
-      final scaleY = screenSize.height / previewSize.height;
-
-      final scaledRect = Rect.fromLTRB(
-        detection.boundingBox.left * scaleX,
-        detection.boundingBox.top * scaleY,
-        detection.boundingBox.right * scaleX,
-        detection.boundingBox.bottom * scaleY,
-      );
-
-      canvas.drawRect(scaledRect, paint);
-
-      textPainter.text = TextSpan(
-        text: '${detection.label} ${(detection.confidence * 100).toStringAsFixed(0)}%',
-        style: const TextStyle(
-          color: Colors.green,
-          fontSize: 16,
-          backgroundColor: Colors.black54,
-        ),
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(scaledRect.left, scaledRect.top - 20),
-      );
+    try {
+      _timer?.cancel();
+      _batchResultSubscription?.cancel();
+      _controller?.dispose();
+      WidgetsBinding.instance.removeObserver(this);
+      // Note: Don't dispose TFLiteService here as it might be used by other parts of the app
+      print('Camera disposed successfully');
+    } catch (e) {
+      print('Error during camera disposal: $e');
+    } finally {
+      super.dispose();
     }
-  }
-
-  @override
-  bool shouldRepaint(DetectionPainter oldDelegate) {
-    return oldDelegate.detections != detections;
   }
 }

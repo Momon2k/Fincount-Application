@@ -4,7 +4,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'Login_Page.dart';
 import 'models/session_model.dart';
-import 'services/object_detection_service.dart';
 import 'Dashboard_Page.dart';
 import 'Camera_Page.dart';
 import 'Batches_Page.dart';
