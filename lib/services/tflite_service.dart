@@ -9,6 +9,12 @@ import 'package:image/image.dart' as img;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+// Enum for fish species
+enum FishSpecies {
+  tilapia,
+  bangus,
+}
+
 // Data classes for batch processing
 class DetectionRequest {
   final String id;
@@ -16,11 +22,13 @@ class DetectionRequest {
   final double confidenceThreshold;
   final double nmsThreshold;
   final DateTime timestamp;
+  final FishSpecies species;
 
   DetectionRequest({
     required this.id,
     required this.imageFile,
-    this.confidenceThreshold = 0.5,
+    required this.species,
+    this.confidenceThreshold = 0.3,
     this.nmsThreshold = 0.4,
   }) : timestamp = DateTime.now();
 }
@@ -64,10 +72,9 @@ class ImagePreprocessor {
   static const int targetSize = 640;
   static const int inputSize = 640 * 640 * 3;
 
-  // Pre-allocate buffers for different sizes
   static ByteData _getBuffer(int size) {
     if (!_bufferPool.containsKey(size)) {
-      _bufferPool[size] = ByteData(size * 4); // Float32 = 4 bytes
+      _bufferPool[size] = ByteData(size * 4);
     }
     return _bufferPool[size]!;
   }
@@ -87,22 +94,15 @@ class ImagePreprocessor {
     final stopwatch = Stopwatch()..start();
     
     try {
-      // Read image bytes with memory mapping for large files
       final bytes = await _readImageBytes(imageFile);
-      
-      // Fast decode with reduced memory allocations
       final image = img.decodeImage(bytes);
       if (image == null) {
         throw Exception('Could not decode image: ${imageFile.path}');
       }
 
-      // Ultra-fast resize using nearest neighbor for speed
       final resized = _ultraFastResize(image, size);
-      
-      // Convert to float32 with pre-allocated buffer
       final inputData = _imageToFloat32ArrayFast(resized, size);
       
-      // Cache management
       if (useCache) {
         _manageCache(cacheKey, inputData);
       }
@@ -116,23 +116,19 @@ class ImagePreprocessor {
     }
   }
 
-  // Memory-mapped file reading for large images
   static Future<Uint8List> _readImageBytes(File imageFile) async {
     final fileSize = await imageFile.length();
     
-    if (fileSize > 10 * 1024 * 1024) { // 10MB threshold
-      // Use memory mapping for large files
+    if (fileSize > 10 * 1024 * 1024) {
       final randomAccessFile = await imageFile.open();
       final bytes = await randomAccessFile.read(fileSize);
       await randomAccessFile.close();
       return bytes;
     } else {
-      // Direct read for smaller files
       return await imageFile.readAsBytes();
     }
   }
 
-  // Ultra-fast resize using nearest neighbor sampling
   static img.Image _ultraFastResize(img.Image image, int targetSize) {
     if (image.width == targetSize && image.height == targetSize) {
       return image;
@@ -142,7 +138,6 @@ class ImagePreprocessor {
     final xRatio = image.width / targetSize;
     final yRatio = image.height / targetSize;
 
-    // Nearest neighbor interpolation - fastest method
     for (int y = 0; y < targetSize; y++) {
       for (int x = 0; x < targetSize; x++) {
         final srcX = (x * xRatio).floor();
@@ -154,12 +149,10 @@ class ImagePreprocessor {
     return resized;
   }
 
-  // Optimized float32 conversion with pre-allocated buffer
   static Uint8List _imageToFloat32ArrayFast(img.Image image, int size) {
     final buffer = _getBuffer(size * size * 3);
     final pixels = image.getBytes(order: img.ChannelOrder.rgb);
     
-    // Direct conversion without intermediate arrays
     for (int i = 0; i < pixels.length; i++) {
       buffer.setFloat32(i * 4, pixels[i] / 255.0, Endian.host);
     }
@@ -188,52 +181,86 @@ class ImagePreprocessor {
   static int get cacheSize => _cache.length;
 }
 
-// Optimized TFLite service with model caching and thread pool
+// Model configuration class
+class ModelConfig {
+  final FishSpecies species;
+  final int outputChannels;
+  final List<int> outputShape;
+  
+  ModelConfig({
+    required this.species,
+    required this.outputChannels,
+    required this.outputShape,
+  });
+}
+
+// Optimized TFLite service with multiple model support
 class TFLiteService {
   static final TFLiteService _instance = TFLiteService._internal();
   factory TFLiteService() => _instance;
   TFLiteService._internal();
 
-  Interpreter? _interpreter;
+  final Map<FishSpecies, Interpreter> _interpreters = {};
+  final Map<FishSpecies, ModelConfig> _modelConfigs = {};
   bool _isInitialized = false;
   
-  // Pre-allocated tensors for better performance
   late final List<List<List<List<double>>>> _inputTensor;
-  late final List<List<List<double>>> _outputTensor;
   
-  // Performance monitoring
   final List<Duration> _processingTimes = [];
   int _totalProcessed = 0;
   
-  // Thread pool for parallel processing
   final List<Isolate> _isolatePool = [];
   final List<SendPort> _sendPorts = [];
   final List<bool> _isolateAvailable = [];
   static const int poolSize = 3;
   
-  // Batch processing queue
   final List<DetectionRequest> _batchQueue = [];
   final StreamController<BatchResult> _batchResultController = StreamController<BatchResult>.broadcast();
   Timer? _batchTimer;
   
-  // Configuration
-  static const int batchSize = 8; // Increased batch size
-  static const Duration batchTimeout = Duration(milliseconds: 500); // Reduced timeout
+  static const int batchSize = 8;
+  static const Duration batchTimeout = Duration(milliseconds: 500);
   
   Stream<BatchResult> get batchResults => _batchResultController.stream;
+
+  static const Map<FishSpecies, String> _modelPaths = {
+    FishSpecies.tilapia: 'assets/models/model.tflite',
+    FishSpecies.bangus: 'assets/models/model2.tflite',
+  };
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      // Initialize interpreter with basic optimizations
-      _interpreter = await Interpreter.fromAsset(
-        'assets/models/model.tflite',
-        options: InterpreterOptions()
-          ..threads = 4, // Use multiple threads
-      );
+      print('Initializing TFLite service with multiple models...');
       
-      // Pre-allocate tensors to avoid repeated allocations
+      // Initialize interpreters for each species
+      for (final species in FishSpecies.values) {
+        final modelPath = _modelPaths[species]!;
+        print('Loading model for ${species.name}: $modelPath');
+        
+        _interpreters[species] = await Interpreter.fromAsset(
+          modelPath,
+          options: InterpreterOptions()..threads = 4,
+        );
+        
+        _interpreters[species]!.allocateTensors();
+        
+        // Get output shape dynamically
+        final outputTensor = _interpreters[species]!.getOutputTensor(0);
+        final outputShape = outputTensor.shape;
+        final outputChannels = outputShape[1]; // Should be 5 or 6
+        
+        _modelConfigs[species] = ModelConfig(
+          species: species,
+          outputChannels: outputChannels,
+          outputShape: outputShape,
+        );
+        
+        print('Model loaded for ${species.name}: Output shape: $outputShape, Channels: $outputChannels');
+      }
+      
+      // Pre-allocate input tensor (same for all models)
       _inputTensor = List.generate(1, (b) =>
         List.generate(640, (h) =>
           List.generate(640, (w) =>
@@ -242,21 +269,11 @@ class TFLiteService {
         )
       );
       
-      _outputTensor = List.generate(1, (batch) => 
-        List.generate(5, (channel) => 
-          List.filled(8400, 0.0)
-        )
-      );
-      
-      _interpreter!.allocateTensors();
-      
-      // Initialize isolate pool for parallel processing
       await _initializeIsolatePool();
       
       _isInitialized = true;
-      print('TFLite service initialized successfully with ${_isolatePool.length} isolates');
+      print('TFLite service initialized successfully with ${_interpreters.length} models');
       
-      // Start batch processing timer
       _startBatchTimer();
       
     } catch (e) {
@@ -265,7 +282,6 @@ class TFLiteService {
     }
   }
 
-  // Initialize isolate pool for parallel processing
   Future<void> _initializeIsolatePool() async {
     for (int i = 0; i < poolSize; i++) {
       final receivePort = ReceivePort();
@@ -274,19 +290,16 @@ class TFLiteService {
       _isolatePool.add(isolate);
       _isolateAvailable.add(true);
       
-      // Get SendPort from isolate
       final sendPort = await receivePort.first as SendPort;
       _sendPorts.add(sendPort);
       receivePort.close();
     }
   }
 
-  // Isolate entry point
   static void _isolateEntry(SendPort mainSendPort) {
     final receivePort = ReceivePort();
     mainSendPort.send(receivePort.sendPort);
     
-    // Initialize TFLite in isolate
     late TFLiteService service;
     
     receivePort.listen((message) async {
@@ -313,9 +326,10 @@ class TFLiteService {
     });
   }
 
-  // Single image detection (highly optimized)
-  Future<int> detectFingerlings(File imageFile, {
-    double confidenceThreshold = 0.5,
+  Future<int> detectFingerlings(
+    File imageFile, {
+    required FishSpecies species,
+    double confidenceThreshold = 0.3,
     double nmsThreshold = 0.4,
   }) async {
     if (!_isInitialized) {
@@ -325,6 +339,7 @@ class TFLiteService {
     final request = DetectionRequest(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       imageFile: imageFile,
+      species: species,
       confidenceThreshold: confidenceThreshold,
       nmsThreshold: nmsThreshold,
     );
@@ -338,14 +353,12 @@ class TFLiteService {
     return result.count;
   }
 
-  // Optimized batch processing with parallel execution
   Future<BatchResult> processBatch(List<DetectionRequest> requests) async {
     final stopwatch = Stopwatch()..start();
     final results = <DetectionResult>[];
     
     print('Processing batch of ${requests.length} images');
     
-    // Process in parallel using isolate pool
     final futures = <Future<DetectionResult>>[];
     
     for (int i = 0; i < requests.length; i++) {
@@ -353,7 +366,6 @@ class TFLiteService {
       futures.add(_processInIsolate(requests[i], isolateIndex));
     }
     
-    // Wait for all results
     final parallelResults = await Future.wait(futures);
     results.addAll(parallelResults);
     
@@ -368,7 +380,6 @@ class TFLiteService {
     return batchResult;
   }
 
-  // Process request in specific isolate
   Future<DetectionResult> _processInIsolate(DetectionRequest request, int isolateIndex) async {
     final receivePort = ReceivePort();
     
@@ -383,21 +394,25 @@ class TFLiteService {
     return result;
   }
 
-  // Ultra-optimized internal detection
   Future<DetectionResult> _detectFingerlingsInternal(DetectionRequest request) async {
     final stopwatch = Stopwatch()..start();
     
     try {
-      // Fast preprocessing with caching
+      final interpreter = _interpreters[request.species];
+      if (interpreter == null) {
+        throw Exception('Model not loaded for species: ${request.species.name}');
+      }
+
+      final config = _modelConfigs[request.species]!;
+      print('Using model for ${request.species.name} with ${config.outputChannels} output channels');
+
       final inputData = await ImagePreprocessor.preprocessImage(
         request.imageFile,
         useCache: true,
       );
 
-      // Direct tensor manipulation for speed
       final inputFloat32 = inputData.buffer.asFloat32List();
       
-      // Copy to pre-allocated tensor (faster than reshape)
       int srcIndex = 0;
       for (int h = 0; h < 640; h++) {
         for (int w = 0; w < 640; w++) {
@@ -407,19 +422,24 @@ class TFLiteService {
         }
       }
 
-      // Run inference with pre-allocated output
-      _interpreter!.run(_inputTensor, _outputTensor);
+      // Create output tensor dynamically based on model's output shape
+      final outputTensor = List.generate(1, (batch) => 
+        List.generate(config.outputChannels, (channel) => 
+          List.filled(8400, 0.0)
+        )
+      );
 
-      // Ultra-fast detection processing
+      // Run inference with species-specific output tensor
+      interpreter.run(_inputTensor, outputTensor);
+
       final detections = _processDetectionsFast(
-        _outputTensor,
+        outputTensor,
         request.confidenceThreshold,
         request.nmsThreshold,
       );
 
       stopwatch.stop();
       
-      // Update performance metrics
       _processingTimes.add(stopwatch.elapsed);
       _totalProcessed++;
       
@@ -446,7 +466,6 @@ class TFLiteService {
     }
   }
 
-  // Ultra-fast detection processing with optimized algorithms
   List<Map<String, double>> _processDetectionsFast(
     List<List<List<double>>> output,
     double confidenceThreshold,
@@ -454,14 +473,13 @@ class TFLiteService {
   ) {
     final candidates = <Map<String, double>>[];
     
-    // Step 1: Vectorized confidence filtering
+    // Extract data - confidence is always at index 4 regardless of output channels
     final confidences = output[0][4];
     final centerXs = output[0][0];
     final centerYs = output[0][1];
     final widths = output[0][2];
     final heights = output[0][3];
     
-    // Pre-filter by confidence in batch
     for (int i = 0; i < 8400; i++) {
       if (confidences[i] > confidenceThreshold) {
         final centerX = centerXs[i] * 640;
@@ -480,10 +498,8 @@ class TFLiteService {
       }
     }
     
-    // Step 2: Optimized NMS with early termination
     if (candidates.isEmpty) return [];
     
-    // Sort by confidence (descending)
     candidates.sort((a, b) => b['confidence']!.compareTo(a['confidence']!));
     
     final selected = <Map<String, double>>[];
@@ -495,21 +511,18 @@ class TFLiteService {
       final current = candidates[i];
       selected.add(current);
       
-      // Mark overlapping boxes as suppressed
       for (int j = i + 1; j < candidates.length; j++) {
         if (!suppressed[j] && _fastIoU(current, candidates[j]) > nmsThreshold) {
           suppressed[j] = true;
         }
       }
       
-      // Early termination if we have enough detections
       if (selected.length >= 100) break;
     }
     
     return selected;
   }
 
-  // Optimized IoU calculation with early returns
   double _fastIoU(Map<String, double> box1, Map<String, double> box2) {
     final x1 = box1['x1']!;
     final y1 = box1['y1']!;
@@ -521,13 +534,11 @@ class TFLiteService {
     final x2_2 = box2['x2']!;
     final y2_2 = box2['y2']!;
     
-    // Calculate intersection bounds
     final left = x1 > x1_2 ? x1 : x1_2;
     final top = y1 > y1_2 ? y1 : y1_2;
     final right = x2 < x2_2 ? x2 : x2_2;
     final bottom = y2 < y2_2 ? y2 : y2_2;
     
-    // Early return if no intersection
     if (left >= right || top >= bottom) return 0.0;
     
     final intersection = (right - left) * (bottom - top);
@@ -536,7 +547,6 @@ class TFLiteService {
     return intersection / union;
   }
 
-  // Batch processing management
   void addToBatch(DetectionRequest request) {
     _batchQueue.add(request);
     
@@ -563,7 +573,6 @@ class TFLiteService {
     _batchResultController.add(result);
   }
 
-  // Performance monitoring
   Map<String, dynamic> getPerformanceMetrics() {
     if (_processingTimes.isEmpty) {
       return {
@@ -571,6 +580,11 @@ class TFLiteService {
         'averageProcessingTime': 0,
         'cacheSize': ImagePreprocessor.cacheSize,
         'isolatePoolSize': _isolatePool.length,
+        'loadedModels': _interpreters.keys.map((s) => s.name).toList(),
+        'modelConfigs': _modelConfigs.map((k, v) => MapEntry(k.name, {
+          'outputChannels': v.outputChannels,
+          'outputShape': v.outputShape,
+        })),
       };
     }
     
@@ -584,16 +598,24 @@ class TFLiteService {
       'cacheSize': ImagePreprocessor.cacheSize,
       'batchQueueSize': _batchQueue.length,
       'isolatePoolSize': _isolatePool.length,
+      'loadedModels': _interpreters.keys.map((s) => s.name).toList(),
+      'modelConfigs': _modelConfigs.map((k, v) => MapEntry(k.name, {
+        'outputChannels': v.outputChannels,
+        'outputShape': v.outputShape,
+      })),
     };
   }
 
-  // Cleanup and disposal
   void dispose() {
     _batchTimer?.cancel();
     _batchResultController.close();
-    _interpreter?.close();
     
-    // Clean up isolate pool
+    for (final interpreter in _interpreters.values) {
+      interpreter.close();
+    }
+    _interpreters.clear();
+    _modelConfigs.clear();
+    
     for (final isolate in _isolatePool) {
       isolate.kill();
     }
@@ -608,7 +630,6 @@ class TFLiteService {
   }
 }
 
-// Performance monitoring utilities
 class PerformanceMonitor {
   static final Stopwatch _stopwatch = Stopwatch();
   static final Map<String, List<int>> _metrics = {};
@@ -623,7 +644,6 @@ class PerformanceMonitor {
     _metrics[operation] ??= [];
     _metrics[operation]!.add(_stopwatch.elapsedMilliseconds);
     
-    // Keep only last 50 measurements
     if (_metrics[operation]!.length > 50) {
       _metrics[operation]!.removeAt(0);
     }

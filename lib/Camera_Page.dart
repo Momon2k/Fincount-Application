@@ -67,7 +67,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   String timestamp = '';
   Timer? _timer;
   final SessionService _sessionService = SessionService();
-  final TFLiteService _tfliteService = TFLiteService(); // Initialize TFLite service
+  final TFLiteService _tfliteService = TFLiteService();
   String? _lastCapturedImagePath;
   StreamSubscription? _batchResultSubscription;
 
@@ -75,15 +75,35 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   List<Duration> _processingTimes = [];
   bool _isModelInitialized = false;
   String _modelStatus = 'Initializing...';
+  
+  // Species enum mapping
+  FishSpecies? _selectedSpecies;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _mapSpeciesToEnum();
     _initializeCamera();
     _initializeTFLiteService();
     _startTimestamp();
     _setupBatchResultListener();
+  }
+
+  // Map the string species to FishSpecies enum
+  void _mapSpeciesToEnum() {
+    final speciesLower = widget.species.toLowerCase();
+    if (speciesLower.contains('tilapia')) {
+      _selectedSpecies = FishSpecies.tilapia;
+    } else if (speciesLower.contains('bangus') || speciesLower.contains('milkfish')) {
+      _selectedSpecies = FishSpecies.bangus;
+    } else {
+      // Default to tilapia if unknown species
+      _selectedSpecies = FishSpecies.tilapia;
+      print('Warning: Unknown species "${widget.species}", defaulting to Tilapia');
+    }
+    
+    print('Selected species enum: ${_selectedSpecies?.name}');
   }
 
   Future<void> _initializeCamera() async {
@@ -114,17 +134,17 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   Future<void> _initializeTFLiteService() async {
     try {
       setState(() {
-        _modelStatus = 'Loading AI model...';
+        _modelStatus = 'Loading AI model for ${widget.species}...';
       });
       
       await _tfliteService.initialize();
       
       setState(() {
         _isModelInitialized = true;
-        _modelStatus = 'Model ready';
+        _modelStatus = 'Model ready (${_selectedSpecies?.name ?? 'unknown'})';
       });
       
-      print('TFLite service initialized successfully');
+      print('TFLite service initialized successfully for ${_selectedSpecies?.name}');
     } catch (e) {
       print('Error initializing TFLite service: $e');
       setState(() {
@@ -167,6 +187,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return;
     }
 
+    if (_selectedSpecies == null) {
+      _showErrorSnackBar('Species not properly configured');
+      return;
+    }
+
     setState(() {
       isProcessingImage = true;
       _detections = [];
@@ -175,7 +200,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     final processingStopwatch = Stopwatch()..start();
 
     try {
-      print('\n=== Starting capture and detection ===');
+      print('\n=== Starting capture and detection for ${_selectedSpecies?.name} ===');
       
       // Capture image
       final XFile? imageFile = await _controller?.takePicture();
@@ -194,9 +219,10 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       _lastCapturedImagePath = newPath;
       print('Image saved to: $newPath');
 
-      // Perform TFLite detection
+      // Perform TFLite detection with the selected species model
       final detectionCount = await _tfliteService.detectFingerlings(
         savedImage,
+        species: _selectedSpecies!,
         confidenceThreshold: 0.5,
         nmsThreshold: 0.4,
       );
@@ -210,7 +236,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       }
 
       // Create detection results for visualization
-      // Note: The TFLiteService currently returns only count, but we can extend it to return full detection data
       final mockDetections = _createMockDetectionsForVisualization(detectionCount);
 
       setState(() {
@@ -228,7 +253,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Detected: $detectionCount fish (${processingTime}ms, avg: ${avgProcessingTime.toStringAsFixed(0)}ms)',
+              'Detected: $detectionCount ${widget.species} (${processingTime}ms, avg: ${avgProcessingTime.toStringAsFixed(0)}ms)',
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
@@ -251,15 +276,13 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   }
 
   // Helper method to create mock detections for visualization
-  // This should be replaced with actual detection data from TFLiteService
   List<DetectionResult> _createMockDetectionsForVisualization(int count) {
     final List<DetectionResult> detections = [];
     
     // Create mock bounding boxes for visualization
-    // In a real implementation, you'd modify TFLiteService to return detection coordinates
     for (int i = 0; i < count && i < 20; i++) { // Limit to 20 for performance
       detections.add(DetectionResult(
-        label: 'Fish',
+        label: widget.species,
         confidence: 0.7 + (i * 0.05), // Mock confidence values
         boundingBox: Rect.fromLTWH(
           50.0 + (i * 30.0) % 300, // Mock x position
@@ -344,7 +367,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
               children: [
                 Text('Batch ID: ${widget.batchId}'),
                 const SizedBox(height: 8),
-                Text('Species: ${widget.species}'),
+                Text('Species: ${widget.species} (${_selectedSpecies?.name})'),
                 const SizedBox(height: 8),
                 Text('Location: ${widget.location}'),
                 const SizedBox(height: 8),
@@ -361,7 +384,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                 Text('Time: $timestamp'),
                 if (_processingTimes.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text('Avg Processing Time: ${_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length}ms'),
+                  Text('Avg Processing Time: ${(_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length).toStringAsFixed(0)}ms'),
                 ],
               ],
             ),
@@ -394,11 +417,34 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('Active Species: ${_selectedSpecies?.name ?? 'N/A'}'),
+                const Divider(),
                 Text('Total Processed: ${metrics['totalProcessed']}'),
                 Text('Average Processing Time: ${metrics['averageProcessingTime']?.toStringAsFixed(2) ?? 'N/A'}ms'),
                 Text('Cache Size: ${metrics['cacheSize']}'),
                 Text('Isolate Pool Size: ${metrics['isolatePoolSize']}'),
                 Text('Batch Queue Size: ${metrics['batchQueueSize'] ?? 'N/A'}'),
+                const Divider(),
+                const Text('Loaded Models:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ...((metrics['loadedModels'] as List<dynamic>?) ?? [])
+                    .map((model) => Padding(
+                          padding: const EdgeInsets.only(left: 8, top: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                model == _selectedSpecies?.name 
+                                    ? Icons.check_circle 
+                                    : Icons.circle_outlined,
+                                size: 16,
+                                color: model == _selectedSpecies?.name 
+                                    ? Colors.green 
+                                    : Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(model.toString()),
+                            ],
+                          ),
+                        )),
               ],
             ),
           ),
@@ -432,7 +478,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fingerlings Detection'),
+        title: Text('${widget.species} Detection'),
         actions: [
           // Model status indicator
           Center(
@@ -543,9 +589,13 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                   ),
                   if (_processingTimes.isNotEmpty)
                     Text(
-                      'Avg: ${_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length}ms',
+                      'Avg: ${(_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length).toStringAsFixed(0)}ms',
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
+                  Text(
+                    'Model: ${_selectedSpecies?.name ?? 'N/A'}',
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -553,15 +603,15 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
           if (isProcessingImage)
             Container(
               color: Colors.black26,
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
                     Text(
-                      'Processing image...',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+                      'Detecting ${widget.species}...',
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ],
                 ),
@@ -579,7 +629,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       _batchResultSubscription?.cancel();
       _controller?.dispose();
       WidgetsBinding.instance.removeObserver(this);
-      // Note: Don't dispose TFLiteService here as it might be used by other parts of the app
       print('Camera disposed successfully');
     } catch (e) {
       print('Error during camera disposal: $e');

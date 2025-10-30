@@ -65,7 +65,9 @@ flutter:
   assets:
     - assets/logo.png
     - assets/models/model.tflite
-    # - assets/label.txt
+    - assets/models/model2.tflite
+    #- assets/models/label.txt
+    #- assets/models/label2.txt
    
   # To add assets to your application, add an assets section, like this:
   # assets:
