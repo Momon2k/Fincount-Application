@@ -11,7 +11,8 @@ import 'package:uuid/uuid.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import './models/session.dart';
 import './models/session_model.dart';
-import './services/session_service.dart';
+import './services/hybrid_session_service.dart';
+import './services/api_service.dart';
 import './services/tflite_service.dart';
 
 class DetectionResult {
@@ -47,12 +48,12 @@ class CameraPage extends StatefulWidget {
   final String notes;
 
   const CameraPage({
-    Key? key,
+    super.key,
     required this.batchId,
     required this.species,
     required this.location,
     this.notes = '',
-  }) : super(key: key);
+  });
 
   @override
   _CameraPageState createState() => _CameraPageState();
@@ -66,16 +67,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   Map<String, int> _counts = {};
   String timestamp = '';
   Timer? _timer;
-  final SessionService _sessionService = SessionService();
+  final HybridSessionService _hybridSessionService = HybridSessionService();
   final TFLiteService _tfliteService = TFLiteService();
   String? _lastCapturedImagePath;
   StreamSubscription? _batchResultSubscription;
 
   // Performance tracking
-  List<Duration> _processingTimes = [];
+  final List<Duration> _processingTimes = [];
   bool _isModelInitialized = false;
   String _modelStatus = 'Initializing...';
-  
+
   // Species enum mapping
   FishSpecies? _selectedSpecies;
 
@@ -95,14 +96,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     final speciesLower = widget.species.toLowerCase();
     if (speciesLower.contains('tilapia')) {
       _selectedSpecies = FishSpecies.tilapia;
-    } else if (speciesLower.contains('bangus') || speciesLower.contains('milkfish')) {
+    } else if (speciesLower.contains('bangus') ||
+        speciesLower.contains('milkfish')) {
       _selectedSpecies = FishSpecies.bangus;
     } else {
       // Default to tilapia if unknown species
       _selectedSpecies = FishSpecies.tilapia;
-      print('Warning: Unknown species "${widget.species}", defaulting to Tilapia');
+      print(
+          'Warning: Unknown species "${widget.species}", defaulting to Tilapia');
     }
-    
+
     print('Selected species enum: ${_selectedSpecies?.name}');
   }
 
@@ -136,15 +139,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       setState(() {
         _modelStatus = 'Loading AI model for ${widget.species}...';
       });
-      
+
       await _tfliteService.initialize();
-      
+
       setState(() {
         _isModelInitialized = true;
         _modelStatus = 'Model ready (${_selectedSpecies?.name ?? 'unknown'})';
       });
-      
-      print('TFLite service initialized successfully for ${_selectedSpecies?.name}');
+
+      print(
+          'TFLite service initialized successfully for ${_selectedSpecies?.name}');
     } catch (e) {
       print('Error initializing TFLite service: $e');
       setState(() {
@@ -154,9 +158,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   }
 
   void _setupBatchResultListener() {
-    _batchResultSubscription = _tfliteService.batchResults.listen((batchResult) {
+    _batchResultSubscription =
+        _tfliteService.batchResults.listen((batchResult) {
       // Handle batch results if needed for bulk processing
-      print('Batch result received: ${batchResult.successCount} successes, ${batchResult.failureCount} failures');
+      print(
+          'Batch result received: ${batchResult.successCount} successes, ${batchResult.failureCount} failures');
     });
   }
 
@@ -178,7 +184,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   }
 
   Future<void> _captureAndDetect() async {
-    if (isProcessingImage || _controller == null || !_controller!.value.isInitialized) {
+    if (isProcessingImage ||
+        _controller == null ||
+        !_controller!.value.isInitialized) {
       return;
     }
 
@@ -200,8 +208,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     final processingStopwatch = Stopwatch()..start();
 
     try {
-      print('\n=== Starting capture and detection for ${_selectedSpecies?.name} ===');
-      
+      print(
+          '\n=== Starting capture and detection for ${_selectedSpecies?.name} ===');
+
       // Capture image
       final XFile? imageFile = await _controller?.takePicture();
       if (imageFile == null) throw Exception('Failed to capture image');
@@ -236,7 +245,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       }
 
       // Create detection results for visualization
-      final mockDetections = _createMockDetectionsForVisualization(detectionCount);
+      final mockDetections =
+          _createMockDetectionsForVisualization(detectionCount);
 
       setState(() {
         _detections = mockDetections;
@@ -247,8 +257,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       if (mounted) {
         final processingTime = processingStopwatch.elapsedMilliseconds;
         final avgProcessingTime = _processingTimes
-            .map((d) => d.inMilliseconds)
-            .reduce((a, b) => a + b) / _processingTimes.length;
+                .map((d) => d.inMilliseconds)
+                .reduce((a, b) => a + b) /
+            _processingTimes.length;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -278,9 +289,10 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   // Helper method to create mock detections for visualization
   List<DetectionResult> _createMockDetectionsForVisualization(int count) {
     final List<DetectionResult> detections = [];
-    
+
     // Create mock bounding boxes for visualization
-    for (int i = 0; i < count && i < 20; i++) { // Limit to 20 for performance
+    for (int i = 0; i < count && i < 20; i++) {
+      // Limit to 20 for performance
       detections.add(DetectionResult(
         label: widget.species,
         confidence: 0.7 + (i * 0.05), // Mock confidence values
@@ -292,7 +304,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         ),
       ));
     }
-    
+
     return detections;
   }
 
@@ -312,8 +324,44 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return;
     }
 
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+
+    bool sessionSavedToServer = false;
+    String errorMessage = '';
+
     try {
-      // Create and save Session for SharedPreferences
+      String imageUrl = _lastCapturedImagePath!;
+
+      print('=== Camera Page: Starting save session ===');
+
+      // Check if online and try to upload image
+      final isOnline = await _hybridSessionService.isOnline();
+      print('Camera Page: Connection check result: $isOnline');
+
+      if (isOnline) {
+        try {
+          // Upload image to server
+          imageUrl = await ApiService.uploadImage(
+            File(_lastCapturedImagePath!),
+            widget.batchId,
+          );
+          print('Camera Page: Image uploaded successfully: $imageUrl');
+        } catch (e) {
+          print('Camera Page: Image upload failed, using local path: $e');
+          // Continue with local path if upload fails
+        }
+      }
+
+      // Create Session object
       final session = Session(
         id: const Uuid().v4(),
         batchId: widget.batchId,
@@ -322,11 +370,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         notes: widget.notes,
         counts: Map<String, int>.from(_counts),
         timestamp: timestamp,
-        imageUrl: _lastCapturedImagePath!,
+        imageUrl: imageUrl,
       );
-      await _sessionService.saveSession(session);
 
-      // Create and save SessionModel for Hive
+      print('Camera Page: Calling HybridSessionService.saveSession()');
+
+      // Save using HybridSessionService (handles both local and API)
+      try {
+        await _hybridSessionService.saveSession(session);
+        // If we reach here without exception, check if it was synced
+        final isOnlineAfterSave = await _hybridSessionService.isOnline();
+        sessionSavedToServer = isOnlineAfterSave;
+        print(
+            'Camera Page: Session save completed. Synced to server: $sessionSavedToServer');
+      } catch (e) {
+        print('Camera Page: Session save threw exception: $e');
+        errorMessage = e.toString();
+        // Session was saved locally but not to server
+        sessionSavedToServer = false;
+      }
+
+      // Also save SessionModel for Hive (for local UI)
       final sessionModel = SessionModel(
         batchId: widget.batchId,
         species: widget.species,
@@ -337,9 +401,33 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       );
       final sessionsBox = Hive.box<SessionModel>('sessions');
       await sessionsBox.add(sessionModel);
-      
+
       if (mounted) {
-        Navigator.of(context).pop(); // Close the modal
+        Navigator.of(context).pop(); // Close loading dialog
+        Navigator.of(context).pop(); // Close the review modal
+
+        // Show success message based on actual result
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    sessionSavedToServer
+                        ? 'Session saved to server successfully!'
+                        : 'Session saved locally. Will sync when online.${errorMessage.isNotEmpty ? '\nError: $errorMessage' : ''}',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor:
+                sessionSavedToServer ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/dashboard',
@@ -347,8 +435,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         );
       }
     } catch (e) {
-      print('Error saving session: $e');
+      print('Camera Page: Fatal error saving session: $e');
       if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
         _showErrorSnackBar('Error saving session: ${e.toString()}');
       }
     }
@@ -373,18 +462,18 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                 const SizedBox(height: 8),
                 Text('Notes: ${widget.notes}'),
                 const SizedBox(height: 16),
-                const Text('Detected Counts:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ..._counts.entries
-                    .where((e) => e.value > 0)
-                    .map((e) => Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text('${e.key}: ${e.value}'),
-                        )),
+                const Text('Detected Counts:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                ..._counts.entries.where((e) => e.value > 0).map((e) => Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('${e.key}: ${e.value}'),
+                    )),
                 const SizedBox(height: 8),
                 Text('Time: $timestamp'),
                 if (_processingTimes.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text('Avg Processing Time: ${(_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length).toStringAsFixed(0)}ms'),
+                  Text(
+                      'Avg Processing Time: ${(_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length).toStringAsFixed(0)}ms'),
                 ],
               ],
             ),
@@ -406,7 +495,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
   void _showPerformanceMetrics() {
     final metrics = _tfliteService.getPerformanceMetrics();
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -420,24 +509,26 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                 Text('Active Species: ${_selectedSpecies?.name ?? 'N/A'}'),
                 const Divider(),
                 Text('Total Processed: ${metrics['totalProcessed']}'),
-                Text('Average Processing Time: ${metrics['averageProcessingTime']?.toStringAsFixed(2) ?? 'N/A'}ms'),
+                Text(
+                    'Average Processing Time: ${metrics['averageProcessingTime']?.toStringAsFixed(2) ?? 'N/A'}ms'),
                 Text('Cache Size: ${metrics['cacheSize']}'),
                 Text('Isolate Pool Size: ${metrics['isolatePoolSize']}'),
                 Text('Batch Queue Size: ${metrics['batchQueueSize'] ?? 'N/A'}'),
                 const Divider(),
-                const Text('Loaded Models:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('Loaded Models:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 ...((metrics['loadedModels'] as List<dynamic>?) ?? [])
                     .map((model) => Padding(
                           padding: const EdgeInsets.only(left: 8, top: 4),
                           child: Row(
                             children: [
                               Icon(
-                                model == _selectedSpecies?.name 
-                                    ? Icons.check_circle 
+                                model == _selectedSpecies?.name
+                                    ? Icons.check_circle
                                     : Icons.circle_outlined,
                                 size: 16,
-                                color: model == _selectedSpecies?.name 
-                                    ? Colors.green 
+                                color: model == _selectedSpecies?.name
+                                    ? Colors.green
                                     : Colors.grey,
                               ),
                               const SizedBox(width: 4),
@@ -559,15 +650,15 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             right: 0,
             child: Center(
               child: FloatingActionButton(
-                onPressed: (isProcessingImage || !_isModelInitialized) ? null : _captureAndDetect,
+                onPressed: (isProcessingImage || !_isModelInitialized)
+                    ? null
+                    : _captureAndDetect,
                 backgroundColor: _isModelInitialized ? null : Colors.grey,
-                child: Icon(
-                  isProcessingImage 
-                    ? Icons.hourglass_empty 
-                    : _isModelInitialized 
-                      ? Icons.camera 
-                      : Icons.warning
-                ),
+                child: Icon(isProcessingImage
+                    ? Icons.hourglass_empty
+                    : _isModelInitialized
+                        ? Icons.camera
+                        : Icons.warning),
               ),
             ),
           ),
@@ -590,11 +681,13 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                   if (_processingTimes.isNotEmpty)
                     Text(
                       'Avg: ${(_processingTimes.map((d) => d.inMilliseconds).reduce((a, b) => a + b) / _processingTimes.length).toStringAsFixed(0)}ms',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   Text(
                     'Model: ${_selectedSpecies?.name ?? 'N/A'}',
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
+                    style: const TextStyle(
+                        color: Colors.greenAccent, fontSize: 11),
                   ),
                 ],
               ),

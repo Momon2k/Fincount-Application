@@ -14,8 +14,9 @@ class ProfilePage extends StatefulWidget {
   _ProfilePageState createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
-  int _selectedIndex = 3;
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
+  final int _selectedIndex = 3;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -50,8 +51,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const DashboardPage(initialIndex: 0),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const DashboardPage(initialIndex: 0),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -60,8 +63,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const BatchesPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const BatchesPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -70,8 +75,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const HistoryPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -87,7 +94,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             'Logout',
             style: GoogleFonts.inter(fontWeight: FontWeight.w600),
@@ -224,7 +232,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                       ),
                       IconButton(
                         onPressed: _handleLogout,
-                        icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                        icon: const Icon(Icons.logout_rounded,
+                            color: Colors.white),
                         tooltip: 'Logout',
                       ),
                     ],
@@ -243,7 +252,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
                 child: Column(
                   children: [
                     Container(
@@ -269,7 +279,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF1976D2).withOpacity(0.3),
+                                  color:
+                                      const Color(0xFF1976D2).withOpacity(0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 4),
                                 ),
@@ -305,11 +316,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                             ),
                           ),
                           const SizedBox(height: 32),
-                          _buildInfoRow('Staff ID', staffId, Icons.badge_outlined),
+                          _buildInfoRow(
+                              'Staff ID', staffId, Icons.badge_outlined),
                           const SizedBox(height: 16),
-                          _buildInfoRow('Full Name', staffName, Icons.person_outline),
+                          _buildInfoRow(
+                              'Full Name', staffName, Icons.person_outline),
                           const SizedBox(height: 16),
-                          _buildInfoRow('Email Address', staffEmail, Icons.email_outlined),
+                          _buildInfoRow('Email Address', staffEmail,
+                              Icons.email_outlined),
                         ],
                       ),
                     ),

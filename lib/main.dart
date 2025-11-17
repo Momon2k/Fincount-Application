@@ -1,8 +1,8 @@
+import 'package:fish_detection_app/Login_Page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'Login_Page.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models/session_model.dart';
 import 'Dashboard_Page.dart';
 import 'Camera_Page.dart';
@@ -11,19 +11,22 @@ import 'History_Page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
+    // Load environment variables
+    await dotenv.load(fileName: ".env");
+
     // Initialize Hive
     await Hive.initFlutter();
-    
+
     // Register Adapters
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(SessionModelAdapter());
     }
-    
+
     // Open Boxes
     await Hive.openBox<SessionModel>('sessions');
-    
+
     runApp(const MyApp());
   } catch (e) {
     print('Error initializing app: $e');
@@ -42,9 +45,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        textTheme: GoogleFonts.interTextTheme(
-          Theme.of(context).textTheme,
-        ),
+        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
         // Apply the font to specific components
         appBarTheme: AppBarTheme(
           titleTextStyle: GoogleFonts.inter(
@@ -63,14 +64,12 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/dashboard',
+      initialRoute: '/login',
       routes: {
+        '/login': (context) => const LoginPage(),
         '/dashboard': (context) => const DashboardPage(),
-        '/camera': (context) => const CameraPage(
-              batchId: '',
-              species: '',
-              location: '',
-            ),
+        '/camera': (context) =>
+            const CameraPage(batchId: '', species: '', location: ''),
         '/batches': (context) => const BatchesPage(),
         '/history': (context) => const HistoryPage(),
       },

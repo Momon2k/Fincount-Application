@@ -17,7 +17,7 @@ class SessionPage extends StatefulWidget {
 }
 
 class _SessionPageState extends State<SessionPage> {
-  int _selectedIndex = 0;
+  final int _selectedIndex = 0;
   final TextEditingController _batchIdController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
@@ -86,8 +86,10 @@ class _SessionPageState extends State<SessionPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const DashboardPage(initialIndex: 0),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const DashboardPage(initialIndex: 0),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -96,8 +98,10 @@ class _SessionPageState extends State<SessionPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const BatchesPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const BatchesPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -106,8 +110,10 @@ class _SessionPageState extends State<SessionPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const HistoryPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -116,8 +122,10 @@ class _SessionPageState extends State<SessionPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const ProfilePage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const ProfilePage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -167,13 +175,13 @@ class _SessionPageState extends State<SessionPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                Text(
-                  "Session",
-                  style: GoogleFonts.inter(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                    Text(
+                      "Session",
+                      style: GoogleFonts.inter(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -181,10 +189,13 @@ class _SessionPageState extends State<SessionPage> {
                         Navigator.pushReplacement(
                           context,
                           PageRouteBuilder(
-                            pageBuilder: (context, animation, secondaryAnimation) => 
-                              const DashboardPage(initialIndex: 0),
-                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                              return FadeTransition(opacity: animation, child: child);
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    const DashboardPage(initialIndex: 0),
+                            transitionsBuilder: (context, animation,
+                                secondaryAnimation, child) {
+                              return FadeTransition(
+                                  opacity: animation, child: child);
                             },
                           ),
                         );
@@ -204,7 +215,8 @@ class _SessionPageState extends State<SessionPage> {
                 // Date Container
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -218,7 +230,8 @@ class _SessionPageState extends State<SessionPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: Color(0xFF1976D2), size: 20),
+                      const Icon(Icons.calendar_today,
+                          color: Color(0xFF1976D2), size: 20),
                       const SizedBox(width: 12),
                       Text(
                         _currentDate,
@@ -279,7 +292,8 @@ class _SessionPageState extends State<SessionPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon: const Icon(Icons.tag, color: Color(0xFF1976D2)),
+                        prefixIcon:
+                            const Icon(Icons.tag, color: Color(0xFF1976D2)),
                       ),
                       style: GoogleFonts.inter(
                         fontSize: 16,
@@ -312,7 +326,7 @@ class _SessionPageState extends State<SessionPage> {
                       ],
                     ),
                     child: DropdownButtonFormField<String>(
-                      value: _selectedFishSpecies,
+                      initialValue: _selectedFishSpecies,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -320,7 +334,8 @@ class _SessionPageState extends State<SessionPage> {
                         ),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.set_meal, color: Color(0xFF1976D2)),
+                        prefixIcon: const Icon(Icons.set_meal,
+                            color: Color(0xFF1976D2)),
                       ),
                       hint: Text(
                         'Select fish species',
@@ -380,7 +395,8 @@ class _SessionPageState extends State<SessionPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon: const Icon(Icons.location_on, color: Color(0xFF1976D2)),
+                        prefixIcon: const Icon(Icons.location_on,
+                            color: Color(0xFF1976D2)),
                       ),
                       style: GoogleFonts.inter(
                         fontSize: 16,
@@ -427,7 +443,8 @@ class _SessionPageState extends State<SessionPage> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        prefixIcon: const Icon(Icons.note_add, color: Color(0xFF1976D2)),
+                        prefixIcon: const Icon(Icons.note_add,
+                            color: Color(0xFF1976D2)),
                       ),
                       style: GoogleFonts.inter(
                         fontSize: 16,
@@ -446,14 +463,18 @@ class _SessionPageState extends State<SessionPage> {
                           Navigator.push(
                             context,
                             PageRouteBuilder(
-                              pageBuilder: (context, animation, secondaryAnimation) => CameraPage(
+                              pageBuilder:
+                                  (context, animation, secondaryAnimation) =>
+                                      CameraPage(
                                 batchId: _batchIdController.text,
                                 species: _selectedFishSpecies!,
                                 location: _locationController.text,
                                 notes: _notesController.text,
                               ),
-                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                return FadeTransition(opacity: animation, child: child);
+                              transitionsBuilder: (context, animation,
+                                  secondaryAnimation, child) {
+                                return FadeTransition(
+                                    opacity: animation, child: child);
                               },
                             ),
                           );

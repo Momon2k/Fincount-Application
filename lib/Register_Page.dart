@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'Dashboard_Page.dart';
-import 'Register_Page.dart';
 import 'services/api_service.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
+class _RegisterPageState extends State<RegisterPage>
+    with TickerProviderStateMixin {
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
 
   // Animation controllers
@@ -73,26 +76,44 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
-    _usernameController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _handleLogin() async {
+  void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
+      // Check if passwords match
+      if (_passwordController.text != _confirmPasswordController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Passwords do not match'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
 
       try {
-        // Call actual API login
-        final email = _usernameController.text.trim();
+        // Call actual API register
+        final name = _nameController.text.trim();
+        final email = _emailController.text.trim();
         final password = _passwordController.text;
 
-        print('🔐 Attempting login with email: $email');
-        final response = await ApiService.login(email, password);
+        print('📝 Attempting registration...');
+        print('Name: $name');
+        print('Email: $email');
 
-        print('✅ Login successful!');
+        final response = await ApiService.register(email, password, name);
+
+        print('✅ Registration successful!');
         print('Token saved: ${response['token'] != null}');
 
         if (mounted) {
@@ -103,7 +124,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Login successful!'),
+              content: Text('Registration successful! Welcome to FinCount!'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -123,7 +144,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           );
         }
       } catch (e) {
-        print('❌ Login failed: $e');
+        print('❌ Registration failed: $e');
 
         if (mounted) {
           setState(() {
@@ -134,7 +155,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  'Login failed: ${e.toString().replaceAll('Exception: ', '')}'),
+                  'Registration failed: ${e.toString().replaceAll('Exception: ', '')}'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
             ),
@@ -161,7 +182,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 32),
 
                   // Logo and Title Section with fade animation
                   FadeTransition(
@@ -172,15 +193,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       children: [
                         Image.asset(
                           'assets/logo.png',
-                          height: 90,
-                          width: 90,
+                          height: 80,
+                          width: 80,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
                         Container(
                           width: double.infinity,
                           alignment: Alignment.center,
                           child: Text(
-                            'Welcome to FinCount',
+                            'Create Account',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
                               fontSize: 20,
@@ -194,7 +215,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           width: double.infinity,
                           alignment: Alignment.center,
                           child: Text(
-                            'Sign in to start counting fingerlings',
+                            'Sign up to start counting fingerlings',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
                               fontSize: 12,
@@ -215,7 +236,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       child: Container(
                         width: double.infinity,
                         constraints: const BoxConstraints(maxWidth: 360),
-                        padding: const EdgeInsets.all(28),
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(13),
@@ -233,135 +254,51 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Container(
-                                width: double.infinity,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'Username',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _usernameController,
-                                textAlign: TextAlign.left,
-                                style: GoogleFonts.inter(fontSize: 15),
-                                decoration: InputDecoration(
-                                  hintText: 'Enter your username',
-                                  hintStyle: GoogleFonts.inter(
-                                    color: Colors.black38,
-                                    fontSize: 14,
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.person_outline,
-                                    color: Color(0xFF1976D2),
-                                    size: 20,
-                                  ),
-                                  filled: true,
-                                  fillColor:
-                                      const Color(0xFF1976D2).withOpacity(0.05),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF1976D2), width: 2),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Colors.red, width: 1),
-                                  ),
-                                  focusedErrorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Colors.red, width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
-                                ),
+                              // Name Field
+                              _buildTextField(
+                                controller: _nameController,
+                                label: 'Full Name',
+                                hint: 'Enter your full name',
+                                icon: Icons.person_outline,
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'Please enter your username';
+                                    return 'Please enter your name';
                                   }
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 20),
-                              Container(
-                                width: double.infinity,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'Password',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                  ),
-                                ),
+                              const SizedBox(height: 16),
+
+                              // Email Field
+                              _buildTextField(
+                                controller: _emailController,
+                                label: 'Email',
+                                hint: 'Enter your email',
+                                icon: Icons.email_outlined,
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                  if (!value.contains('@')) {
+                                    return 'Please enter a valid email';
+                                  }
+                                  return null;
+                                },
                               ),
-                              const SizedBox(height: 8),
-                              TextFormField(
+                              const SizedBox(height: 16),
+
+                              // Password Field
+                              _buildPasswordField(
                                 controller: _passwordController,
+                                label: 'Password',
+                                hint: 'Enter your password',
                                 obscureText: _obscurePassword,
-                                textAlign: TextAlign.left,
-                                style: GoogleFonts.inter(fontSize: 15),
-                                decoration: InputDecoration(
-                                  hintText: 'Enter your password',
-                                  hintStyle: GoogleFonts.inter(
-                                    color: Colors.black38,
-                                    fontSize: 14,
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.lock_outline,
-                                    color: Color(0xFF1976D2),
-                                    size: 20,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                      color: Colors.black54,
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                  ),
-                                  filled: true,
-                                  fillColor:
-                                      const Color(0xFF1976D2).withOpacity(0.05),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF1976D2), width: 2),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Colors.red, width: 1),
-                                  ),
-                                  focusedErrorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(13),
-                                    borderSide: const BorderSide(
-                                        color: Colors.red, width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
-                                ),
+                                onToggle: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your password';
@@ -372,12 +309,36 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   return null;
                                 },
                               ),
+                              const SizedBox(height: 16),
+
+                              // Confirm Password Field
+                              _buildPasswordField(
+                                controller: _confirmPasswordController,
+                                label: 'Confirm Password',
+                                hint: 'Re-enter your password',
+                                obscureText: _obscureConfirmPassword,
+                                onToggle: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please confirm your password';
+                                  }
+                                  return null;
+                                },
+                              ),
                               const SizedBox(height: 24),
+
+                              // Register Button
                               SizedBox(
                                 width: double.infinity,
                                 height: 48,
                                 child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleLogin,
+                                  onPressed:
+                                      _isLoading ? null : _handleRegister,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF1976D2),
                                     foregroundColor: Colors.white,
@@ -401,7 +362,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           ),
                                         )
                                       : Text(
-                                          'Sign In',
+                                          'Create Account',
                                           style: GoogleFonts.inter(
                                             fontSize: 15,
                                             fontWeight: FontWeight.w600,
@@ -415,7 +376,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
                   // Bottom text with fade animation
                   FadeTransition(
@@ -428,7 +389,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            "Don't have an account? ",
+                            'Already have an account? ',
                             style: GoogleFonts.inter(
                               color: Colors.black54,
                               fontSize: 13,
@@ -436,12 +397,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           ),
                           TextButton(
                             onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const RegisterPage(),
-                                ),
-                              );
+                              Navigator.pop(context);
                             },
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFF1976D2),
@@ -449,7 +405,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                   horizontal: 4, vertical: 2),
                             ),
                             child: Text(
-                              'Sign Up',
+                              'Sign In',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -467,6 +423,138 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: GoogleFonts.inter(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(
+              color: Colors.black38,
+              fontSize: 13,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: const Color(0xFF1976D2),
+              size: 20,
+            ),
+            filled: true,
+            fillColor: const Color(0xFF1976D2).withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          validator: validator,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool obscureText,
+    required VoidCallback onToggle,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          style: GoogleFonts.inter(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(
+              color: Colors.black38,
+              fontSize: 13,
+            ),
+            prefixIcon: const Icon(
+              Icons.lock_outline,
+              color: Color(0xFF1976D2),
+              size: 20,
+            ),
+            suffixIcon: IconButton(
+              icon: Icon(
+                obscureText ? Icons.visibility_off : Icons.visibility,
+                color: Colors.black54,
+                size: 20,
+              ),
+              onPressed: onToggle,
+            ),
+            filled: true,
+            fillColor: const Color(0xFF1976D2).withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(13),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          validator: validator,
+        ),
+      ],
     );
   }
 }

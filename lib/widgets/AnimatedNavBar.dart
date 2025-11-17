@@ -6,10 +6,10 @@ class AnimatedNavBar extends StatelessWidget {
   final Function(int) onItemTapped;
 
   const AnimatedNavBar({
-    Key? key,
+    super.key,
     required this.selectedIndex,
     required this.onItemTapped,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -81,4 +81,4 @@ class AnimatedNavBar extends StatelessWidget {
       label: labels[index],
     );
   }
-} 
+}

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class Session {
   final String id;
   final String batchId;
@@ -46,4 +44,4 @@ class Session {
       imageUrl: json['imageUrl'],
     );
   }
-} 
+}

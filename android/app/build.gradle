@@ -28,8 +28,9 @@ if (flutterVersionName == null) {
 }
 
 android {
+    
     namespace "com.example.fish_detection_app"
-    compileSdkVersion 35
+    compileSdkVersion 36
     ndkVersion "27.0.12077973"
 
     compileOptions {
@@ -48,7 +49,7 @@ android {
     defaultConfig {
         applicationId "com.example.fish_detection_app"
         minSdkVersion 26  // Required for tflite_flutter
-        targetSdkVersion 35
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
@@ -62,4 +63,4 @@ android {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-} 
+}

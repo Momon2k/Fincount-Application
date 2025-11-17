@@ -16,13 +16,16 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStateMixin {
-  int _selectedIndex = 2; // "History" is selected by default
+class _HistoryPageState extends State<HistoryPage>
+    with SingleTickerProviderStateMixin {
+  final int _selectedIndex = 2; // "History" is selected by default
 
   // Colors matching the screenshot exactly
   final Color primaryBlue = const Color(0xFF2196F3); // Main blue color
-  final Color navBarSelectedColor = const Color(0xFF2196F3); // Selected nav item color
-  final Color cardBackground = const Color(0xFFF8F9FA); // Light gray background for cards
+  final Color navBarSelectedColor =
+      const Color(0xFF2196F3); // Selected nav item color
+  final Color cardBackground =
+      const Color(0xFFF8F9FA); // Light gray background for cards
 
   // Controllers for date inputs
   final TextEditingController _startDateController = TextEditingController();
@@ -32,7 +35,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
   // Animation controller
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  
+
   // Scroll controller for card animations
   final ScrollController _scrollController = ScrollController();
   final List<GlobalKey> _cardKeys = List.generate(6, (index) => GlobalKey());
@@ -41,29 +44,29 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize dates
     final now = DateTime.now();
     final monthAgo = now.subtract(const Duration(days: 30));
     _startDateController.text = DateFormat('MM/dd/yyyy').format(monthAgo);
     _endDateController.text = DateFormat('MM/dd/yyyy').format(now);
-    
+
     // Initialize animations
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeOut,
     );
-    
+
     _animationController.forward();
-    
+
     // Add scroll listener for card animations
     _scrollController.addListener(_checkCardVisibility);
-    
+
     // Delay to let layout settle before checking initial visibility
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkCardVisibility();
@@ -76,8 +79,10 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const DashboardPage(initialIndex: 0),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const DashboardPage(initialIndex: 0),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -86,8 +91,10 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const BatchesPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const BatchesPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -96,8 +103,10 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const ProfilePage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const ProfilePage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -119,10 +128,12 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
     for (int i = 0; i < _cardKeys.length; i++) {
       final key = _cardKeys[i];
       if (key.currentContext != null) {
-        final RenderBox box = key.currentContext!.findRenderObject() as RenderBox;
+        final RenderBox box =
+            key.currentContext!.findRenderObject() as RenderBox;
         final position = box.localToGlobal(Offset.zero);
-        final visible = position.dy < MediaQuery.of(context).size.height - 100 &&
-            position.dy > 0;
+        final visible =
+            position.dy < MediaQuery.of(context).size.height - 100 &&
+                position.dy > 0;
         if (visible != _cardVisible[i]) {
           setState(() {
             _cardVisible[i] = visible;
@@ -135,7 +146,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isStartDate 
+      initialDate: isStartDate
           ? DateFormat('MM/dd/yyyy').parse(_startDateController.text)
           : DateFormat('MM/dd/yyyy').parse(_endDateController.text),
       firstDate: DateTime(2020),
@@ -159,7 +170,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
         );
       },
     );
-    
+
     if (picked != null) {
       setState(() {
         if (isStartDate) {
@@ -178,7 +189,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
         _cardVisible[i] = false;
       }
     });
-    
+
     // Simulate filter delay
     Future.delayed(const Duration(milliseconds: 300), () {
       // Animate the cards back in
@@ -193,13 +204,13 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
   void _handleReset() {
     final now = DateTime.now();
     final monthAgo = now.subtract(const Duration(days: 30));
-    
+
     setState(() {
       _startDateController.text = DateFormat('MM/dd/yyyy').format(monthAgo);
       _endDateController.text = DateFormat('MM/dd/yyyy').format(now);
       _selectedBatch = 'All batches';
     });
-    
+
     _handleFilter();
   }
 
@@ -242,7 +253,6 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 12),
-                
                 Text(
                   'Delete Session',
                   style: GoogleFonts.inter(
@@ -252,7 +262,6 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 4),
-                
                 Text(
                   'Are you sure you want to delete this session?',
                   textAlign: TextAlign.center,
@@ -262,7 +271,6 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -292,7 +300,6 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                
                 Row(
                   children: [
                     Expanded(
@@ -326,7 +333,8 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                             SnackBar(
                               content: Row(
                                 children: [
-                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const Icon(Icons.check_circle,
+                                      color: Colors.white),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Session deleted successfully',
@@ -387,9 +395,9 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
               builder: (context, box, _) {
                 if (box.isEmpty) {
                   return Center(
-                child: Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                      children: [
                         Icon(
                           Icons.history,
                           size: 64,
@@ -461,7 +469,8 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     session.batchId,
@@ -477,7 +486,8 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF1976D2).withOpacity(0.1),
+                                      color: const Color(0xFF1976D2)
+                                          .withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
@@ -494,7 +504,8 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                               const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  _buildInfoChip(Icons.set_meal, session.species),
+                                  _buildInfoChip(
+                                      Icons.set_meal, session.species),
                                   const SizedBox(width: 12),
                                   _buildInfoChip(
                                     Icons.location_on,
@@ -504,7 +515,8 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                DateFormat('MMMM d, y • h:mm a').format(session.date),
+                                DateFormat('MMMM d, y • h:mm a')
+                                    .format(session.date),
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   color: Colors.grey[600],
@@ -520,9 +532,9 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
                                   ),
                                 ),
                               ],
-                  ],
-                ),
-              ),
+                            ],
+                          ),
+                        ),
                       ),
                     );
                   },

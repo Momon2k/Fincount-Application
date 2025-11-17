@@ -17,7 +17,7 @@ class BatchesPage extends StatefulWidget {
 }
 
 class _BatchesPageState extends State<BatchesPage> {
-  int _selectedIndex = 1;
+  final int _selectedIndex = 1;
   int totalFingerlings = 0;
   int activeBatches = 0;
 
@@ -30,11 +30,12 @@ class _BatchesPageState extends State<BatchesPage> {
   void _loadStatistics() {
     final sessionsBox = Hive.box<SessionModel>('sessions');
     final sessions = sessionsBox.values.toList();
-    
+
     setState(() {
       // Calculate total fingerlings
-      totalFingerlings = sessions.fold(0, (sum, session) => sum + session.count);
-      
+      totalFingerlings =
+          sessions.fold(0, (sum, session) => sum + session.count);
+
       // Get unique batches
       final uniqueBatches = sessions.map((session) => session.batchId).toSet();
       activeBatches = uniqueBatches.length;
@@ -47,8 +48,10 @@ class _BatchesPageState extends State<BatchesPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const DashboardPage(initialIndex: 0),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const DashboardPage(initialIndex: 0),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -57,8 +60,10 @@ class _BatchesPageState extends State<BatchesPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const HistoryPage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const HistoryPage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -67,8 +72,10 @@ class _BatchesPageState extends State<BatchesPage> {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const ProfilePage(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const ProfilePage(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               return FadeTransition(opacity: animation, child: child);
             },
           ),
@@ -85,10 +92,12 @@ class _BatchesPageState extends State<BatchesPage> {
         valueListenable: Hive.box<SessionModel>('sessions').listenable(),
         builder: (context, box, _) {
           final sessions = box.values.toList();
-          
+
           // Update statistics
-          totalFingerlings = sessions.fold(0, (sum, session) => sum + session.count);
-          final uniqueBatches = sessions.map((session) => session.batchId).toSet();
+          totalFingerlings =
+              sessions.fold(0, (sum, session) => sum + session.count);
+          final uniqueBatches =
+              sessions.map((session) => session.batchId).toSet();
           activeBatches = uniqueBatches.length;
 
           return Column(
@@ -137,7 +146,8 @@ class _BatchesPageState extends State<BatchesPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const SessionPage()),
+                            MaterialPageRoute(
+                                builder: (context) => const SessionPage()),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -183,7 +193,6 @@ class _BatchesPageState extends State<BatchesPage> {
                         icon: Icons.layers_outlined,
                       ),
                       const SizedBox(height: 16),
-
                       _buildStatCard(
                         title: "Total Fingerlings",
                         value: totalFingerlings.toString(),
@@ -191,7 +200,6 @@ class _BatchesPageState extends State<BatchesPage> {
                         icon: Icons.calculate_outlined,
                       ),
                       const SizedBox(height: 24),
-
                       if (sessions.isNotEmpty) ...[
                         _buildBatchesList(sessions),
                       ] else ...[
@@ -249,9 +257,10 @@ class _BatchesPageState extends State<BatchesPage> {
           ),
           const SizedBox(height: 16),
           ...batchGroups.entries.take(5).map((entry) {
-            final totalCount = entry.value.fold(0, (sum, session) => sum + session.count);
+            final totalCount =
+                entry.value.fold(0, (sum, session) => sum + session.count);
             final lastSession = entry.value.last;
-            
+
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
@@ -297,7 +306,8 @@ class _BatchesPageState extends State<BatchesPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1976D2).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -314,7 +324,7 @@ class _BatchesPageState extends State<BatchesPage> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
