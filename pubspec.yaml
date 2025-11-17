@@ -66,7 +66,7 @@ flutter:
 
   assets:
     - assets/logo.png
-    - assets/logo2.jpeg
+    - assets/logo2.png
     - assets/models/model.tflite
     - assets/models/model2.tflite
     - .env
@@ -75,7 +75,7 @@ flutter:
 
 flutter_launcher_icons:
   android: true
-  image_path: "assets/logo2.jpeg"
+  image_path: "assets/logo2.png"
    
   # To add assets to your application, add an assets section, like this:
   # assets:
