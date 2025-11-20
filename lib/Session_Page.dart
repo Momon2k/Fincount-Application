@@ -19,7 +19,6 @@ class SessionPage extends StatefulWidget {
 class _SessionPageState extends State<SessionPage> {
   final int _selectedIndex = 0;
   final TextEditingController _batchIdController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   late String _currentDate;
 
@@ -27,6 +26,12 @@ class _SessionPageState extends State<SessionPage> {
   final List<String> _fishSpeciesList = [
     'Tilapia',
     'Bangus (Milkfish)',
+  ];
+
+  String? _selectedLocation;
+  final List<String> _locationList = [
+    'Cagangohan',
+    'Nanyo',
   ];
 
   @override
@@ -53,7 +58,7 @@ class _SessionPageState extends State<SessionPage> {
   bool _validateForm() {
     if (_batchIdController.text.isEmpty ||
         _selectedFishSpecies == null ||
-        _locationController.text.isEmpty) {
+        _selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -137,7 +142,6 @@ class _SessionPageState extends State<SessionPage> {
   @override
   void dispose() {
     _batchIdController.dispose();
-    _locationController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -359,7 +363,7 @@ class _SessionPageState extends State<SessionPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Location Field
+                  // Location Dropdown
                   Text(
                     "Location",
                     style: GoogleFonts.inter(
@@ -381,27 +385,36 @@ class _SessionPageState extends State<SessionPage> {
                         ),
                       ],
                     ),
-                    child: TextField(
-                      controller: _locationController,
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedLocation,
                       decoration: InputDecoration(
-                        hintText: "Enter location",
-                        filled: true,
-                        fillColor: Colors.white,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
+                        filled: true,
+                        fillColor: Colors.white,
                         prefixIcon: const Icon(Icons.location_on,
                             color: Color(0xFF1976D2)),
                       ),
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        color: Colors.black87,
+                      hint: Text(
+                        'Select location',
+                        style: GoogleFonts.inter(color: Colors.grey[600]),
                       ),
+                      items: _locationList.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(
+                            value,
+                            style: GoogleFonts.inter(),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedLocation = newValue;
+                        });
+                      },
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -468,7 +481,7 @@ class _SessionPageState extends State<SessionPage> {
                                       CameraPage(
                                 batchId: _batchIdController.text,
                                 species: _selectedFishSpecies!,
-                                location: _locationController.text,
+                                location: _selectedLocation!,
                                 notes: _notesController.text,
                               ),
                               transitionsBuilder: (context, animation,

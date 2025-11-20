@@ -96,11 +96,11 @@ class ApiService {
 
   // Authentication endpoints
   static Future<Map<String, dynamic>> login(
-      String email, String password) async {
+      String username, String password) async {
     final response = await _makeRequest(
       'POST',
       '/auth/login',
-      body: {'email': email, 'password': password},
+      body: {'username': username, 'password': password},
       requiresAuth: false,
     );
 
@@ -114,11 +114,17 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> register(
-      String email, String password, String name) async {
+      String username, String password, String fullName, String userType) async {
     final response = await _makeRequest(
       'POST',
       '/auth/register',
-      body: {'email': email, 'password': password, 'name': name},
+      body: {
+        'username': username,
+        'full_name': fullName,
+        'user_type': userType,
+        'password': password,
+        'confirm_password': password,
+      },
       requiresAuth: false,
     );
 

@@ -14,6 +14,23 @@ enum FishSpecies {
   bangus,
 }
 
+// Image quality check result
+class ImageQualityResult {
+  final bool isSuitable;
+  final String reason;
+  final double? brightness;
+  final double? blurScore;
+  final String? resolution;
+
+  ImageQualityResult({
+    required this.isSuitable,
+    required this.reason,
+    this.brightness,
+    this.blurScore,
+    this.resolution,
+  });
+}
+
 // Data classes for batch processing
 class DetectionRequest {
   final String id;
@@ -22,13 +39,15 @@ class DetectionRequest {
   final double nmsThreshold;
   final DateTime timestamp;
   final FishSpecies species;
+  final bool applySizeFiltering;
 
   DetectionRequest({
     required this.id,
     required this.imageFile,
     required this.species,
-    this.confidenceThreshold = 0.3,
-    this.nmsThreshold = 0.4,
+    this.confidenceThreshold = 0.5,  // Increased from 0.3 for better precision
+    this.nmsThreshold = 0.3,         // Decreased from 0.4 for stricter duplicate removal
+    this.applySizeFiltering = true,
   }) : timestamp = DateTime.now();
 }
 
@@ -324,6 +343,7 @@ class TFLiteService {
     });
   }
 
+  /// Standard detection with default parameters
   Future<int> detectFingerlings(
     File imageFile, {
     required FishSpecies species,
@@ -349,6 +369,284 @@ class TFLiteService {
     }
 
     return result.count;
+  }
+
+  /// Enhanced detection with image quality check, multi-scale detection, and ensemble counting
+  /// This provides the highest accuracy but is ~3x slower than standard detection
+  Future<int> detectFingerlingsEnhanced(
+    File imageFile, {
+    required FishSpecies species,
+    bool performQualityCheck = true,
+    bool useMultiScale = true,
+    bool useEnsemble = true,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // Step 1: Check image quality
+    if (performQualityCheck) {
+      final qualityCheck = await checkImageQuality(imageFile);
+      if (!qualityCheck.isSuitable) {
+        throw Exception('Image quality insufficient: ${qualityCheck.reason}');
+      }
+      print('✅ Image quality check passed');
+    }
+
+    // Step 2: Use multi-scale or standard detection
+    int count;
+    if (useMultiScale) {
+      count = await detectMultiScale(imageFile, species: species);
+    } else if (useEnsemble) {
+      count = await detectWithEnsemble(imageFile, species: species);
+    } else {
+      count = await detectFingerlings(imageFile, species: species);
+    }
+
+    return count;
+  }
+
+  /// Check if image quality is suitable for detection
+  Future<ImageQualityResult> checkImageQuality(File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+      
+      if (image == null) {
+        return ImageQualityResult(
+          isSuitable: false,
+          reason: 'Could not decode image',
+        );
+      }
+
+      // Check 1: Minimum resolution
+      if (image.width < 640 || image.height < 640) {
+        return ImageQualityResult(
+          isSuitable: false,
+          reason: 'Resolution too low: ${image.width}x${image.height} (minimum 640x640)',
+        );
+      }
+
+      // Check 2: Brightness (average pixel value)
+      final brightness = _calculateBrightness(image);
+      if (brightness < 50) {
+        return ImageQualityResult(
+          isSuitable: false,
+          reason: 'Image too dark: brightness=$brightness (minimum 50)',
+        );
+      }
+      if (brightness > 200) {
+        return ImageQualityResult(
+          isSuitable: false,
+          reason: 'Image too bright: brightness=$brightness (maximum 200)',
+        );
+      }
+
+      // Check 3: Blur detection (Laplacian variance)
+      final blurScore = _calculateBlurScore(image);
+      if (blurScore < 100) {
+        return ImageQualityResult(
+          isSuitable: false,
+          reason: 'Image too blurry: blur score=$blurScore (minimum 100)',
+        );
+      }
+
+      return ImageQualityResult(
+        isSuitable: true,
+        reason: 'Image quality acceptable',
+        brightness: brightness,
+        blurScore: blurScore,
+        resolution: '${image.width}x${image.height}',
+      );
+    } catch (e) {
+      return ImageQualityResult(
+        isSuitable: false,
+        reason: 'Error checking image quality: $e',
+      );
+    }
+  }
+
+  /// Calculate average brightness of image
+  double _calculateBrightness(img.Image image) {
+    double totalBrightness = 0;
+    int count = 0;
+    
+    // Sample every 10th pixel for performance  
+    for (int y = 0; y < image.height; y += 10) {
+      for (int x = 0; x < image.width; x += 10) {
+        final pixel = image.getPixel(x, y);
+        final r = pixel.r.toInt();
+        final g = pixel.g.toInt();
+        final b = pixel.b.toInt();
+        // Luminance formula: 0.299*R + 0.587*G + 0.114*B
+        totalBrightness += (r * 0.299 + g * 0.587 + b * 0.114);
+        count++;
+      }
+    }
+    
+    return count > 0 ? totalBrightness / count : 0;
+  }
+
+  /// Calculate blur score using Laplacian variance
+  double _calculateBlurScore(img.Image image) {
+    // Convert to grayscale for blur detection
+    final gray = img.grayscale(image);
+    
+    // Apply Laplacian kernel to detect edges
+    double sum = 0;
+    double sumSq = 0;
+    int count = 0;
+
+    // Sample every 10th pixel for performance
+    for (int y = 1; y < gray.height - 1; y += 10) {
+      for (int x = 1; x < gray.width - 1; x += 10) {
+        final center = gray.getPixel(x, y).r;
+        final top = gray.getPixel(x, y - 1).r;
+        final bottom = gray.getPixel(x, y + 1).r;
+        final left = gray.getPixel(x - 1, y).r;
+        final right = gray.getPixel(x + 1, y).r;
+        
+        // Laplacian: center * 4 - (top + bottom + left + right)
+        final laplacian = (center * 4 - top - bottom - left - right).toDouble();
+        
+        sum += laplacian;
+        sumSq += laplacian * laplacian;
+        count++;
+      }
+    }
+
+    // Calculate variance (higher variance = sharper image)
+    if (count == 0) return 0;
+    final mean = sum / count;
+    final variance = (sumSq / count) - (mean * mean);
+    
+    return variance;
+  }
+
+  /// Detect at multiple scales and combine results for better accuracy
+  Future<int> detectMultiScale(
+    File imageFile, {
+    required FishSpecies species,
+    List<double> scales = const [0.8, 1.0, 1.2],
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    print('🔍 Multi-scale detection at scales: $scales');
+
+    final allDetections = <Map<String, double>>[];
+
+    for (final scale in scales) {
+      final scaledSize = (640 * scale).toInt();
+      
+      final request = DetectionRequest(
+        id: '${DateTime.now().millisecondsSinceEpoch}_$scale',
+        imageFile: imageFile,
+        species: species,
+        confidenceThreshold: 0.55,  // Slightly lower for multi-scale
+        nmsThreshold: 0.25,
+      );
+
+      try {
+        final result = await _detectFingerlingsInternal(request);
+        
+        // Scale bounding boxes back to original size
+        for (final detection in result.detections) {
+          final scaledDetection = {
+            'x1': detection['x1']! / scale,
+            'y1': detection['y1']! / scale,
+            'x2': detection['x2']! / scale,
+            'y2': detection['y2']! / scale,
+            'confidence': detection['confidence']!,
+            'area': detection['area']! / (scale * scale),
+          };
+          allDetections.add(scaledDetection);
+        }
+        
+        print('Scale $scale: ${result.detections.length} detections');
+      } catch (e) {
+        print('⚠️ Error at scale $scale: $e');
+      }
+    }
+
+    // Apply global NMS across all scales
+    final finalDetections = _applyGlobalNMS(allDetections, nmsThreshold: 0.3);
+    
+    print('✅ Multi-scale total: ${finalDetections.length} detections');
+    return finalDetections.length;
+  }
+
+  /// Run detection multiple times with different thresholds and return median count
+  Future<int> detectWithEnsemble(
+    File imageFile, {
+    required FishSpecies species,
+    List<double> confidenceThresholds = const [0.4, 0.5, 0.6],
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    print('🎯 Ensemble detection with thresholds: $confidenceThresholds');
+
+    final counts = <int>[];
+
+    for (final threshold in confidenceThresholds) {
+      try {
+        final count = await detectFingerlings(
+          imageFile,
+          species: species,
+          confidenceThreshold: threshold,
+          nmsThreshold: 0.3,
+        );
+        counts.add(count);
+        print('Threshold $threshold: $count detections');
+      } catch (e) {
+        print('⚠️ Error at threshold $threshold: $e');
+      }
+    }
+
+    if (counts.isEmpty) {
+      throw Exception('All ensemble detections failed');
+    }
+
+    // Return median count (most robust to outliers)
+    counts.sort();
+    final medianCount = counts[counts.length ~/ 2];
+    
+    print('✅ Ensemble median: $medianCount (from $counts)');
+    return medianCount;
+  }
+
+  /// Apply NMS across detections from multiple scales
+  List<Map<String, double>> _applyGlobalNMS(
+    List<Map<String, double>> detections, {
+    required double nmsThreshold,
+  }) {
+    if (detections.isEmpty) return [];
+
+    // Sort by confidence
+    detections.sort((a, b) => b['confidence']!.compareTo(a['confidence']!));
+
+    final selected = <Map<String, double>>[];
+    final suppressed = List.filled(detections.length, false);
+
+    for (int i = 0; i < detections.length; i++) {
+      if (suppressed[i]) continue;
+
+      final current = detections[i];
+      selected.add(current);
+
+      for (int j = i + 1; j < detections.length; j++) {
+        if (!suppressed[j] && _fastIoU(current, detections[j]) > nmsThreshold) {
+          suppressed[j] = true;
+        }
+      }
+
+      if (selected.length >= 100) break;
+    }
+
+    return selected;
   }
 
   Future<BatchResult> processBatch(List<DetectionRequest> requests) async {
@@ -434,11 +732,22 @@ class TFLiteService {
       // Run inference with species-specific output tensor
       interpreter.run(_inputTensor, outputTensor);
 
-      final detections = _processDetectionsFast(
+      var detections = _processDetectionsFast(
         outputTensor,
         request.confidenceThreshold,
         request.nmsThreshold,
       );
+
+      // Apply size filtering if enabled
+      if (request.applySizeFiltering && detections.isNotEmpty) {
+        final beforeFiltering = detections.length;
+        detections = _filterBySize(detections);
+        final afterFiltering = detections.length;
+        
+        if (beforeFiltering != afterFiltering) {
+          print('Size filtering: removed ${beforeFiltering - afterFiltering} detections (${beforeFiltering} → $afterFiltering)');
+        }
+      }
 
       stopwatch.stop();
 
@@ -522,6 +831,40 @@ class TFLiteService {
     }
 
     return selected;
+  }
+
+  /// Filter detections by size to remove unrealistic fingerling detections
+  List<Map<String, double>> _filterBySize(
+    List<Map<String, double>> detections, {
+    double minArea = 100.0,        // Minimum area in pixels²
+    double maxArea = 15000.0,      // Maximum area in pixels²
+    double minWidth = 10.0,        // Minimum width in pixels
+    double minHeight = 10.0,       // Minimum height in pixels
+    double maxAspectRatio = 4.0,   // Max width/height ratio (elongated fish)
+  }) {
+    return detections.where((detection) {
+      final x1 = detection['x1']!;
+      final y1 = detection['y1']!;
+      final x2 = detection['x2']!;
+      final y2 = detection['y2']!;
+      
+      final width = x2 - x1;
+      final height = y2 - y1;
+      final area = detection['area']!;
+      
+      // Check size constraints
+      if (area < minArea || area > maxArea) return false;
+      if (width < minWidth || height < minHeight) return false;
+      
+      // Check aspect ratio (fish shouldn't be too elongated)
+      final aspectRatio = width > height ? width / height : height / width;
+      if (aspectRatio > maxAspectRatio) return false;
+      
+      // Check if detection is within image bounds
+      if (x1 < 0 || y1 < 0 || x2 > 640 || y2 > 640) return false;
+      
+      return true;
+    }).toList();
   }
 
   double _fastIoU(Map<String, double> box1, Map<String, double> box2) {

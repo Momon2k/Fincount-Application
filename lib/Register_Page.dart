@@ -16,10 +16,11 @@ class _RegisterPageState extends State<RegisterPage>
   bool _obscureConfirmPassword = true;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
+  String _userType = 'Staff'; // Default user type
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -77,7 +78,7 @@ class _RegisterPageState extends State<RegisterPage>
     _fadeController.dispose();
     _slideController.dispose();
     _nameController.dispose();
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -104,14 +105,15 @@ class _RegisterPageState extends State<RegisterPage>
       try {
         // Call actual API register
         final name = _nameController.text.trim();
-        final email = _emailController.text.trim();
+        final username = _usernameController.text.trim();
         final password = _passwordController.text;
 
         print('📝 Attempting registration...');
         print('Name: $name');
-        print('Email: $email');
+        print('Username: $username');
+        print('User Type: $_userType');
 
-        final response = await ApiService.register(email, password, name);
+        final response = await ApiService.register(username, password, name, _userType);
 
         print('✅ Registration successful!');
         print('Token saved: ${response['token'] != null}');
@@ -124,24 +126,14 @@ class _RegisterPageState extends State<RegisterPage>
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration successful! Welcome to FinCount!'),
+              content: Text('Registration successful! Please login with your credentials.'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
 
-          // Navigate to dashboard
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  const DashboardPage(initialIndex: 0),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-            ),
-          );
+          // Navigate back to login page
+          Navigator.pop(context);
         }
       } catch (e) {
         print('❌ Registration failed: $e');
@@ -153,11 +145,10 @@ class _RegisterPageState extends State<RegisterPage>
 
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Registration failed: ${e.toString().replaceAll('Exception: ', '')}'),
+            const SnackBar(
+              content: Text('Registration failed. Please try again.'),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
+              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -254,7 +245,7 @@ class _RegisterPageState extends State<RegisterPage>
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Name Field
+                              // Full Name Field
                               _buildTextField(
                                 controller: _nameController,
                                 label: 'Full Name',
@@ -269,22 +260,82 @@ class _RegisterPageState extends State<RegisterPage>
                               ),
                               const SizedBox(height: 16),
 
-                              // Email Field
+                              // Username Field
                               _buildTextField(
-                                controller: _emailController,
-                                label: 'Email',
-                                hint: 'Enter your email',
-                                icon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
+                                controller: _usernameController,
+                                label: 'Username',
+                                hint: 'Enter your username',
+                                icon: Icons.account_circle_outlined,
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
+                                    return 'Please enter your username';
                                   }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
+                                  if (value.length < 3) {
+                                    return 'Username must be at least 3 characters';
                                   }
                                   return null;
                                 },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // User Type Selection
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'User Type',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1976D2).withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(13),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        RadioListTile<String>(
+                                          title: Text(
+                                            'Admin',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          value: 'Admin',
+                                          groupValue: _userType,
+                                          activeColor: const Color(0xFF1976D2),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _userType = value!;
+                                            });
+                                          },
+                                        ),
+                                        RadioListTile<String>(
+                                          title: Text(
+                                            'Staff',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          value: 'Staff',
+                                          groupValue: _userType,
+                                          activeColor: const Color(0xFF1976D2),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _userType = value!;
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// Import your other pages here
 import 'Dashboard_Page.dart';
 import 'Batches_Page.dart';
 import 'History_Page.dart';
@@ -21,9 +20,9 @@ class _ProfilePageState extends State<ProfilePage>
   late Animation<double> _fadeAnimation;
 
   // Staff details
-  final String staffName = "John Doe";
+  final String staffName = "Ashley";
   final String staffId = "SF001";
-  final String staffEmail = "john.doe@bfar.org.com";
+  final String staffEmail = "Ashley@gmail.com";
   final String staffRole = "Staff";
 
   @override
@@ -288,7 +287,7 @@ class _ProfilePageState extends State<ProfilePage>
                             ),
                             child: Center(
                               child: Text(
-                                'JS',
+                                '${staffName[0]}',
                                 style: GoogleFonts.inter(
                                   color: Colors.white,
                                   fontSize: 32,

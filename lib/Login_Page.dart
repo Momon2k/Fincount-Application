@@ -132,11 +132,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Login failed: ${e.toString().replaceAll('Exception: ', '')}'),
+            const SnackBar(
+              content: Text('Login failed. Please check your credentials.'),
               backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
+              duration: Duration(seconds: 3),
             ),
           );
         }
