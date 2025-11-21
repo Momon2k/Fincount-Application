@@ -552,6 +552,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             ElevatedButton(
               onPressed: () async {
                 try {
+                  // Clear any persistent SnackBars
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                  }
+                  
                   // Clear authentication tokens
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.remove('auth_token');
@@ -762,23 +767,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
         if (savedLocally && syncedToApi) {
           // Perfect - saved locally and synced to API
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.cloud_done, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text('Session saved and synced to cloud!')),
-                ],
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars() // Clear any existing snackbars
+            ..showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.cloud_done, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Session saved and synced to cloud!')),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
               ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+            );
         } else if (savedLocally && !syncedToApi) {
           // Saved locally but not synced - this is still success!
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars() // Clear any existing snackbars
+            ..showSnackBar(
+              SnackBar(
               content: Row(
                 children: [
                   const Icon(Icons.save, color: Colors.white),
@@ -853,8 +862,10 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
           );
         } else {
           // This shouldn't happen, but handle it
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars() // Clear any existing snackbars
+            ..showSnackBar(
+              const SnackBar(
               content: Row(
                 children: [
                   Icon(Icons.save, color: Colors.white),

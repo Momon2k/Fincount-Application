@@ -8,6 +8,7 @@ import 'Session_Page.dart';
 import 'widgets/AnimatedNavBar.dart';
 import 'models/session_model.dart';
 import 'services/user_session_manager.dart';
+import 'services/connectivity_service.dart';
 
 class DashboardPage extends StatefulWidget {
   final int initialIndex;
@@ -29,6 +30,20 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _loadStatistics();
+    _checkAndSyncPendingData();
+  }
+
+  // Check and sync any pending offline data when dashboard loads
+  void _checkAndSyncPendingData() async {
+    try {
+      final connectivityService = ConnectivityService();
+      if (connectivityService.isInitialized) {
+        // Trigger a sync check if service is initialized
+        await connectivityService.checkAndSync();
+      }
+    } catch (e) {
+      print('Error checking sync status: $e');
+    }
   }
 
   void _loadStatistics() {

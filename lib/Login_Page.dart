@@ -4,6 +4,8 @@ import 'Dashboard_Page.dart';
 import 'Register_Page.dart';
 import 'services/api_service.dart';
 import 'services/user_session_manager.dart';
+import 'services/connectivity_service.dart';
+import 'main.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -111,6 +113,41 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           setState(() {
             _isLoading = false;
           });
+
+          // Initialize connectivity service for auto-sync
+          final connectivityService = ConnectivityService();
+          await connectivityService.initialize();
+          connectivityService.onSyncComplete = (success, message) {
+            final context = navigatorKey.currentContext;
+            if (context != null && message != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        success ? Icons.cloud_done : Icons.cloud_off,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: success ? Colors.green : Colors.orange,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              );
+            }
+          };
+          print('✅ Auto-sync service activated after login');
 
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(

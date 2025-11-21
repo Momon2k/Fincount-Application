@@ -154,6 +154,9 @@ class _ProfilePageState extends State<ProfilePage>
               onPressed: () async {
                 Navigator.of(context).pop();
                 
+                // Clear any persistent SnackBars
+                ScaffoldMessenger.of(context).clearSnackBars();
+                
                 // Clear user-specific storage
                 await UserSessionManager.clearUserSession();
                 print('✅ User session cleared');
