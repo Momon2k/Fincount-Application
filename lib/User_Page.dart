@@ -6,6 +6,7 @@ import 'History_Page.dart';
 import 'Login_Page.dart';
 import 'widgets/AnimatedNavBar.dart';
 import 'services/api_service.dart';
+import 'services/user_session_manager.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -152,8 +153,15 @@ class _ProfilePageState extends State<ProfilePage>
             TextButton(
               onPressed: () async {
                 Navigator.of(context).pop();
+                
+                // Clear user-specific storage
+                await UserSessionManager.clearUserSession();
+                print('✅ User session cleared');
+                
                 // Clear user data and token
                 await AuthService.clearToken();
+                print('✅ Auth token cleared');
+                
                 // Navigate to Login page and clear all previous routes
                 Navigator.pushAndRemoveUntil(
                   context,

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'Dashboard_Page.dart';
+import 'Login_Page.dart';
 import 'services/api_service.dart';
+import 'services/user_session_manager.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -118,12 +119,6 @@ class _RegisterPageState extends State<RegisterPage>
         print('✅ Registration successful!');
         print('Token saved: ${response['token'] != null}');
 
-        // Save user data to shared preferences
-        if (response['user'] != null) {
-          await AuthService.saveUserData(response['user']);
-          print('User data saved: ${response['user']}');
-        }
-
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -132,17 +127,17 @@ class _RegisterPageState extends State<RegisterPage>
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration successful!'),
+              content: Text('Registration successful! Please login to continue.'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
 
-          // Navigate to dashboard since user is already logged in after registration
+          // Navigate to login page after successful registration
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const DashboardPage(initialIndex: 0),
+              builder: (context) => const LoginPage(),
             ),
           );
         }

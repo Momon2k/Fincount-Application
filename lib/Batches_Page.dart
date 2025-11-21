@@ -8,6 +8,7 @@ import 'Session_Page.dart';
 import 'constants/theme_constants.dart';
 import 'widgets/AnimatedNavBar.dart';
 import 'models/session_model.dart';
+import 'services/user_session_manager.dart';
 
 class BatchesPage extends StatefulWidget {
   const BatchesPage({super.key});
@@ -28,7 +29,7 @@ class _BatchesPageState extends State<BatchesPage> {
   }
 
   void _loadStatistics() {
-    final sessionsBox = Hive.box<SessionModel>('sessions');
+    final sessionsBox = UserSessionManager.getCurrentUserBox();
     final sessions = sessionsBox.values.toList();
 
     setState(() {
@@ -89,7 +90,7 @@ class _BatchesPageState extends State<BatchesPage> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: ValueListenableBuilder<Box<SessionModel>>(
-        valueListenable: Hive.box<SessionModel>('sessions').listenable(),
+        valueListenable: UserSessionManager.getCurrentUserBox().listenable(),
         builder: (context, box, _) {
           final sessions = box.values.toList();
 

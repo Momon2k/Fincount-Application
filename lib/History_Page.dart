@@ -8,6 +8,7 @@ import 'User_Page.dart';
 import 'Session_Page.dart';
 import 'models/session_model.dart';
 import 'widgets/AnimatedNavBar.dart';
+import 'services/user_session_manager.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -391,7 +392,7 @@ class _HistoryPageState extends State<HistoryPage>
           _buildHeader(context),
           Expanded(
             child: ValueListenableBuilder<Box<SessionModel>>(
-              valueListenable: Hive.box<SessionModel>('sessions').listenable(),
+              valueListenable: UserSessionManager.getCurrentUserBox().listenable(),
               builder: (context, box, _) {
                 if (box.isEmpty) {
                   return Center(

@@ -7,6 +7,7 @@ import 'User_Page.dart';
 import 'Session_Page.dart';
 import 'widgets/AnimatedNavBar.dart';
 import 'models/session_model.dart';
+import 'services/user_session_manager.dart';
 
 class DashboardPage extends StatefulWidget {
   final int initialIndex;
@@ -31,7 +32,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _loadStatistics() {
-    final sessionsBox = Hive.box<SessionModel>('sessions');
+    final sessionsBox = UserSessionManager.getCurrentUserBox();
     final sessions = sessionsBox.values.toList();
     
     setState(() {
@@ -96,7 +97,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: ValueListenableBuilder<Box<SessionModel>>(
-        valueListenable: Hive.box<SessionModel>('sessions').listenable(),
+        valueListenable: UserSessionManager.getCurrentUserBox().listenable(),
         builder: (context, box, _) {
           final sessions = box.values.toList();
           

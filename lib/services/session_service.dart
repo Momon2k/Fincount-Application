@@ -1,20 +1,23 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/session.dart';
+import 'user_session_manager.dart';
 
 class SessionService {
-  static const String _sessionsKey = 'sessions';
-  static const String _batchesKey = 'batches';
+  // Keys are now user-specific
+  String get _sessionsKey => UserSessionManager.getUserKey('sessions');
+  String get _batchesKey => UserSessionManager.getUserKey('batches');
 
   // Save a new session - WITH ERROR LOGGING
   Future<void> saveSession(Session session) async {
     print('=== SESSION SAVE STARTED ===');
+    print('User ID: ${UserSessionManager.getCurrentUserId()}');
     print('Session Data: ${jsonEncode(session.toJson())}');
     
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     print('SharedPreferences instance obtained');
     
-    // Get existing sessions
+    // Get existing sessions (user-specific)
     List<String> sessions = prefs.getStringList(_sessionsKey) ?? [];
     print('Existing sessions count: ${sessions.length}');
     

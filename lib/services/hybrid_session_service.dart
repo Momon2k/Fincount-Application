@@ -3,12 +3,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/session.dart';
 import 'api_service.dart';
 import 'session_service.dart';
+import 'user_session_manager.dart';
 
 /// Hybrid service that handles both local and remote data storage
 /// Falls back to local storage when API is unavailable
 class HybridSessionService {
-  static const String _syncStatusKey = 'sync_status';
-  static const String _lastSyncKey = 'last_sync';
+  // Keys are now user-specific
+  String get _syncStatusKey => UserSessionManager.getUserKey('sync_status');
+  String get _lastSyncKey => UserSessionManager.getUserKey('last_sync');
+  String get _syncedSessionsKey => UserSessionManager.getUserKey('synced_sessions');
 
   final SessionService _localService = SessionService();
 
@@ -181,23 +184,23 @@ class HybridSessionService {
 
   Future<void> _markAsSynced(String sessionId) async {
     final prefs = await SharedPreferences.getInstance();
-    final syncedIds = prefs.getStringList('synced_sessions') ?? [];
+    final syncedIds = prefs.getStringList(_syncedSessionsKey) ?? [];
     if (!syncedIds.contains(sessionId)) {
       syncedIds.add(sessionId);
-      await prefs.setStringList('synced_sessions', syncedIds);
+      await prefs.setStringList(_syncedSessionsKey, syncedIds);
     }
   }
 
   Future<void> _markAsUnsynced(String sessionId) async {
     final prefs = await SharedPreferences.getInstance();
-    final syncedIds = prefs.getStringList('synced_sessions') ?? [];
+    final syncedIds = prefs.getStringList(_syncedSessionsKey) ?? [];
     syncedIds.remove(sessionId);
-    await prefs.setStringList('synced_sessions', syncedIds);
+    await prefs.setStringList(_syncedSessionsKey, syncedIds);
   }
 
   Future<List<Session>> _getUnsyncedSessions(List<Session> allSessions) async {
     final prefs = await SharedPreferences.getInstance();
-    final syncedIds = prefs.getStringList('synced_sessions') ?? [];
+    final syncedIds = prefs.getStringList(_syncedSessionsKey) ?? [];
     return allSessions
         .where((session) => !syncedIds.contains(session.id))
         .toList();
@@ -206,13 +209,14 @@ class HybridSessionService {
   Future<void> _updateLocalFromApi(List<Session> apiSessions) async {
     // This is a simplified approach - in production you might want more sophisticated merging
     final prefs = await SharedPreferences.getInstance();
+    final sessionsKey = UserSessionManager.getUserKey('sessions');
     final sessionStrings =
         apiSessions.map((s) => jsonEncode(s.toJson())).toList();
-    await prefs.setStringList('sessions', sessionStrings);
+    await prefs.setStringList(sessionsKey, sessionStrings);
 
     // Mark all API sessions as synced
     final syncedIds = apiSessions.map((s) => s.id).toList();
-    await prefs.setStringList('synced_sessions', syncedIds);
+    await prefs.setStringList(_syncedSessionsKey, syncedIds);
   }
 
   Future<void> _updateLastSyncTime() async {

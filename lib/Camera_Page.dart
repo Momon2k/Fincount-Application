@@ -15,6 +15,7 @@ import './models/session_model.dart';
 import './services/hybrid_session_service.dart';
 import './services/api_service.dart';
 import './services/tflite_service.dart';
+import './services/user_session_manager.dart';
 
 class DetectionResult {
   final String label;
@@ -747,7 +748,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         date: DateTime.now(),
         count: _counts.values.fold(0, (sum, count) => sum + count),
       );
-      final sessionsBox = Hive.box<SessionModel>('sessions');
+      final sessionsBox = UserSessionManager.getCurrentUserBox();
       await sessionsBox.add(sessionModel);
 
       if (mounted) {

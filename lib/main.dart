@@ -8,6 +8,7 @@ import 'Dashboard_Page.dart';
 import 'Camera_Page.dart';
 import 'Batches_Page.dart';
 import 'History_Page.dart';
+import 'services/user_session_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,18 +25,26 @@ void main() async {
       Hive.registerAdapter(SessionModelAdapter());
     }
 
-    // Open Boxes
-    await Hive.openBox<SessionModel>('sessions');
+    // Try to restore user session from storage
+    final sessionRestored = await UserSessionManager.initializeFromStoredSession();
+    
+    if (sessionRestored) {
+      print('✅ User session restored on app start');
+    } else {
+      print('ℹ️ No previous session found, user needs to login');
+    }
 
-    runApp(const MyApp());
+    runApp(MyApp(hasStoredSession: sessionRestored));
   } catch (e) {
     print('Error initializing app: $e');
-    runApp(const MyApp());
+    runApp(const MyApp(hasStoredSession: false));
   }
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool hasStoredSession;
+  
+  const MyApp({super.key, this.hasStoredSession = false});
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +73,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/login',
+      initialRoute: hasStoredSession ? '/dashboard' : '/login',
       routes: {
         '/login': (context) => const LoginPage(),
         '/dashboard': (context) => const DashboardPage(),

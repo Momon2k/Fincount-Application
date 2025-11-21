@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'Dashboard_Page.dart';
 import 'Register_Page.dart';
 import 'services/api_service.dart';
+import 'services/user_session_manager.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -99,6 +100,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         if (response['user'] != null) {
           await AuthService.saveUserData(response['user']);
           print('User data saved: ${response['user']}');
+          
+          // Initialize user-specific storage
+          final userId = response['user']['id'];
+          await UserSessionManager.initializeUserSession(userId);
+          print('User session initialized for: $userId');
         }
 
         if (mounted) {
@@ -139,7 +145,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Login failed. Please check your credentials.'),
+              content: Text('Login failed. Check your credentials or Connection error.'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
