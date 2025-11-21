@@ -95,6 +95,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         print('✅ Login successful!');
         print('Token saved: ${response['token'] != null}');
 
+        // Save user data to shared preferences
+        if (response['user'] != null) {
+          await AuthService.saveUserData(response['user']);
+          print('User data saved: ${response['user']}');
+        }
+
         if (mounted) {
           setState(() {
             _isLoading = false;

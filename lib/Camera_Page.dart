@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import './models/session.dart';
 import './models/session_model.dart';
 import './services/hybrid_session_service.dart';
@@ -71,6 +72,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   final TFLiteService _tfliteService = TFLiteService();
   String? _lastCapturedImagePath;
   StreamSubscription? _batchResultSubscription;
+  String? _currentUserId; // ✅ Store current user ID
 
   // Performance tracking
   final List<Duration> _processingTimes = [];
@@ -85,10 +87,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _mapSpeciesToEnum();
+    _loadCurrentUserId(); // ✅ Load user ID on init
     _initializeCamera();
     _initializeTFLiteService();
     _startTimestamp();
     _setupBatchResultListener();
+  }
+
+  // ✅ Load current user ID from SharedPreferences
+  Future<void> _loadCurrentUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _currentUserId = prefs.getString('user_id');
+      
+      if (_currentUserId == null) {
+        print('Warning: No user_id found in SharedPreferences');
+      } else {
+        print('Loaded user_id: $_currentUserId');
+      }
+    } catch (e) {
+      print('Error loading user_id: $e');
+    }
   }
 
   // Map the string species to FishSpecies enum
@@ -318,6 +337,348 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     );
   }
 
+  // Parse error messages to identify specific error types
+  Map<String, dynamic> _parseError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('foreign key') || errorString.contains('foreignkeyviolation')) {
+      return {
+        'type': 'foreign_key_violation',
+        'title': 'Account Data Out of Sync',
+        'message': 'Your account information is not properly synchronized with the server. This usually happens after database updates.',
+        'action': 're_login',
+        'actionText': 'Log Out & Re-login',
+      };
+    } else if (errorString.contains('user not found') || errorString.contains('user_id') && errorString.contains('not present')) {
+      return {
+        'type': 'user_not_found',
+        'title': 'User Authentication Issue',
+        'message': 'Your user account cannot be found in the database. Please log out and log back in.',
+        'action': 're_login',
+        'actionText': 'Log Out & Re-login',
+      };
+    } else if (errorString.contains('no internet') || errorString.contains('network') || errorString.contains('connection')) {
+      return {
+        'type': 'network_error',
+        'title': 'No Internet Connection',
+        'message': 'Your session has been saved locally and will sync automatically when you\'re back online.',
+        'action': 'retry',
+        'actionText': 'Retry Now',
+      };
+    } else if (errorString.contains('timeout')) {
+      return {
+        'type': 'timeout',
+        'title': 'Request Timeout',
+        'message': 'The server took too long to respond. Your session is saved locally.',
+        'action': 'retry',
+        'actionText': 'Retry Sync',
+      };
+    } else if (errorString.contains('unauthorized') || errorString.contains('401')) {
+      return {
+        'type': 'unauthorized',
+        'title': 'Authentication Expired',
+        'message': 'Your login session has expired. Please log in again.',
+        'action': 're_login',
+        'actionText': 'Go to Login',
+      };
+    } else {
+      return {
+        'type': 'unknown',
+        'title': 'Session Save Error',
+        'message': 'An error occurred while saving the session. Data is saved locally.',
+        'action': 'dismiss',
+        'actionText': 'OK',
+        'details': error.toString(),
+      };
+    }
+  }
+
+  // Show detailed error dialog with actionable options
+  void _showErrorDialog(Map<String, dynamic> errorInfo) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                errorInfo['type'] == 'network_error' 
+                  ? Icons.wifi_off 
+                  : Icons.error_outline,
+                color: errorInfo['type'] == 'network_error' 
+                  ? Colors.orange 
+                  : Colors.red,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  errorInfo['title'],
+                  style: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(errorInfo['message']),
+                if (errorInfo['details'] != null) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Technical Details:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      errorInfo['details'],
+                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 20, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Your session data is safe and saved locally.',
+                          style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (errorInfo['action'] != 're_login')
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(); // Close review modal
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/dashboard',
+                    (route) => false,
+                  );
+                },
+                child: const Text('Go to Dashboard'),
+              ),
+            if (errorInfo['action'] == 'retry')
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _retrySaveSession();
+                },
+                child: Text(errorInfo['actionText']),
+              ),
+            if (errorInfo['action'] == 're_login')
+              ElevatedButton(
+                onPressed: () => _promptReLogin(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                ),
+                child: Text(errorInfo['actionText']),
+              ),
+            if (errorInfo['action'] == 'dismiss')
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(); // Close review modal
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/dashboard',
+                    (route) => false,
+                  );
+                },
+                child: Text(errorInfo['actionText']),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Prompt user to re-login
+  void _promptReLogin() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.logout, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Re-login Required'),
+            ],
+          ),
+          content: const Text(
+            'To fix this issue, you need to log out and log back in. This will refresh your account credentials and resolve the synchronization problem.\n\nYour unsaved session will remain in local storage.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop(); // Close error dialog
+                Navigator.of(context).pop(); // Close review modal
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/dashboard',
+                  (route) => false,
+                );
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  // Clear authentication tokens
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove('auth_token');
+                  await prefs.remove('user_data');
+                  
+                  if (mounted) {
+                    // Navigate to login page
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/login',
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  print('Error during logout: $e');
+                  if (mounted) {
+                    _showErrorSnackBar('Failed to log out: ${e.toString()}');
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+              ),
+              child: const Text('Log Out Now'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Retry saving session after error
+  Future<void> _retrySaveSession() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Retrying sync...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      // Check connection first
+      final isOnline = await _hybridSessionService.isOnline();
+      
+      if (!isOnline) {
+        if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+          _showErrorSnackBar('Still offline. Session remains saved locally.');
+        }
+        return;
+      }
+
+      // Retry the session save
+      if (_lastCapturedImagePath != null) {
+        String imageUrl = _lastCapturedImagePath!;
+
+        // Try to upload image
+        try {
+          imageUrl = await ApiService.uploadImage(
+            File(_lastCapturedImagePath!),
+            widget.batchId,
+          );
+        } catch (e) {
+          print('Image upload failed during retry: $e');
+        }
+
+        // Create and save session
+        final session = Session(
+          id: const Uuid().v4(),
+          batchId: widget.batchId,
+          species: widget.species,
+          location: widget.location,
+          notes: widget.notes,
+          counts: Map<String, int>.from(_counts),
+          timestamp: timestamp,
+          imageUrl: imageUrl,
+          userId: _currentUserId, // ✅ Pass current user ID
+        );
+
+        await _hybridSessionService.saveSession(session);
+
+        if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+          Navigator.of(context).pop(); // Close review modal
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Session synced successfully!')),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/dashboard',
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      print('Retry failed: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        final errorInfo = _parseError(e);
+        _showErrorDialog(errorInfo);
+      }
+    }
+  }
+
   Future<void> _saveSession() async {
     if (_lastCapturedImagePath == null) {
       _showErrorSnackBar('No image captured yet!');
@@ -334,9 +695,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         );
       },
     );
-
-    bool sessionSavedToServer = false;
-    String errorMessage = '';
 
     try {
       String imageUrl = _lastCapturedImagePath!;
@@ -357,7 +715,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
           print('Camera Page: Image uploaded successfully: $imageUrl');
         } catch (e) {
           print('Camera Page: Image upload failed, using local path: $e');
-          // Continue with local path if upload fails
         }
       }
 
@@ -371,25 +728,16 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         counts: Map<String, int>.from(_counts),
         timestamp: timestamp,
         imageUrl: imageUrl,
+        userId: _currentUserId, // ✅ Pass current user ID
       );
 
       print('Camera Page: Calling HybridSessionService.saveSession()');
 
       // Save using HybridSessionService (handles both local and API)
-      try {
-        await _hybridSessionService.saveSession(session);
-        // If we reach here without exception, check if it was synced
-        final isOnlineAfterSave = await _hybridSessionService.isOnline();
-        sessionSavedToServer = isOnlineAfterSave;
-        print(
-            'Camera Page: Session save completed. Synced to server: $sessionSavedToServer');
-      } catch (e) {
-        print('Camera Page: Session save threw exception: $e');
-        errorMessage = e.toString();
-        // Session was saved locally but not to server
-        sessionSavedToServer = false;
-      }
-
+      final saveResult = await _hybridSessionService.saveSession(session);
+      
+      print('Save result: $saveResult');
+      
       // Also save SessionModel for Hive (for local UI)
       final sessionModel = SessionModel(
         batchId: widget.batchId,
@@ -406,39 +754,146 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         Navigator.of(context).pop(); // Close loading dialog
         Navigator.of(context).pop(); // Close the review modal
 
-        // Show success message based on actual result
+        // Show appropriate success message based on sync status
+        final savedLocally = saveResult['savedLocally'] ?? false;
+        final syncedToApi = saveResult['syncedToApi'] ?? false;
+        final syncError = saveResult['syncError'];
+
+        if (savedLocally && syncedToApi) {
+          // Perfect - saved locally and synced to API
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.cloud_done, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Session saved and synced to cloud!')),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else if (savedLocally && !syncedToApi) {
+          // Saved locally but not synced - this is still success!
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.save, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      syncError?.contains('internet') ?? false
+                          ? 'Session saved locally. Will sync when online.'
+                          : 'Session saved locally. Sync pending.',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Details',
+                textColor: Colors.white,
+                onPressed: () {
+                  // Show more info about the sync error
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text('Sync Status'),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '✓ Session saved locally',
+                            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '⚠ Cloud sync pending',
+                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          if (syncError != null)
+                            Text('Reason: $syncError'),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Your data is safe! The app will automatically sync to the cloud when you\'re back online.',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        } else {
+          // This shouldn't happen, but handle it
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.save, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Session processed')),
+                ],
+              ),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      print('Camera Page: Error saving session: $e');
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        Navigator.of(context).pop(); // Close the review modal
+        
+        // Show error message but still navigate to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    sessionSavedToServer
-                        ? 'Session saved to server successfully!'
-                        : 'Session saved locally. Will sync when online.${errorMessage.isNotEmpty ? '\nError: $errorMessage' : ''}',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor:
-                sessionSavedToServer ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 4),
+            content: Text('Session saved locally. Error: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
           ),
         );
 
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/dashboard',
-          (route) => false, // Remove all previous routes
+          (route) => false,
         );
-      }
-    } catch (e) {
-      print('Camera Page: Fatal error saving session: $e');
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        _showErrorSnackBar('Error saving session: ${e.toString()}');
       }
     }
   }

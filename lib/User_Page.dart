@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'Dashboard_Page.dart';
 import 'Batches_Page.dart';
 import 'History_Page.dart';
-import 'Login_Page.dart'; // Add this import for LoginPage
+import 'Login_Page.dart';
 import 'widgets/AnimatedNavBar.dart';
+import 'services/api_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,11 +20,12 @@ class _ProfilePageState extends State<ProfilePage>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Staff details
-  final String staffName = "Ashley";
-  final String staffId = "SF001";
-  final String staffEmail = "Ashley@gmail.com";
-  final String staffRole = "Staff";
+  // User details from API
+  String staffName = "";
+  String staffId = "";
+  String staffUsername = "";
+  String staffRole = "";
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -36,6 +38,42 @@ class _ProfilePageState extends State<ProfilePage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
+    _loadUserData();
+  }
+
+  // Load user data from shared preferences
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await AuthService.getUserData();
+      if (userData != null) {
+        setState(() {
+          staffName = userData['full_name'] ?? userData['fullName'] ?? 'User';
+          staffUsername = userData['username'] ?? '';
+          staffId = userData['id'] ?? '';
+          staffRole = userData['user_type'] ?? userData['userType'] ?? 'Staff';
+          _isLoading = false;
+        });
+        print('✅ User data loaded: $userData');
+      } else {
+        setState(() {
+          staffName = 'User';
+          staffUsername = 'N/A';
+          staffId = 'N/A';
+          staffRole = 'Staff';
+          _isLoading = false;
+        });
+        print('⚠️ No user data found in storage');
+      }
+    } catch (e) {
+      print('❌ Error loading user data: $e');
+      setState(() {
+        staffName = 'User';
+        staffUsername = 'N/A';
+        staffId = 'N/A';
+        staffRole = 'Staff';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -88,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   // Add logout function
   void _handleLogout() {
-    // Show confirmation dialog (optional)
+    // Show confirmation dialog
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -112,8 +150,10 @@ class _ProfilePageState extends State<ProfilePage>
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
+                // Clear user data and token
+                await AuthService.clearToken();
                 // Navigate to Login page and clear all previous routes
                 Navigator.pushAndRemoveUntil(
                   context,
@@ -316,13 +356,13 @@ class _ProfilePageState extends State<ProfilePage>
                           ),
                           const SizedBox(height: 32),
                           _buildInfoRow(
-                              'Staff ID', staffId, Icons.badge_outlined),
+                              'User ID', staffId, Icons.badge_outlined),
                           const SizedBox(height: 16),
                           _buildInfoRow(
                               'Full Name', staffName, Icons.person_outline),
                           const SizedBox(height: 16),
-                          _buildInfoRow('Email Address', staffEmail,
-                              Icons.email_outlined),
+                          _buildInfoRow('Username', staffUsername,
+                              Icons.account_circle_outlined),
                         ],
                       ),
                     ),

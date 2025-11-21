@@ -118,6 +118,12 @@ class _RegisterPageState extends State<RegisterPage>
         print('✅ Registration successful!');
         print('Token saved: ${response['token'] != null}');
 
+        // Save user data to shared preferences
+        if (response['user'] != null) {
+          await AuthService.saveUserData(response['user']);
+          print('User data saved: ${response['user']}');
+        }
+
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -126,14 +132,19 @@ class _RegisterPageState extends State<RegisterPage>
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration successful! Please login with your credentials.'),
+              content: Text('Registration successful!'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
 
-          // Navigate back to login page
-          Navigator.pop(context);
+          // Navigate to dashboard since user is already logged in after registration
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DashboardPage(initialIndex: 0),
+            ),
+          );
         }
       } catch (e) {
         print('❌ Registration failed: $e');

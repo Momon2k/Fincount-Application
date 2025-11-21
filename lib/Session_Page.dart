@@ -25,13 +25,13 @@ class _SessionPageState extends State<SessionPage> {
   String? _selectedFishSpecies;
   final List<String> _fishSpeciesList = [
     'Tilapia',
-    'Bangus (Milkfish)',
+    'Bangus',
   ];
 
   String? _selectedLocation;
   final List<String> _locationList = [
     'Cagangohan',
-    'Nanyo',
+    'Southern',
   ];
 
   @override

@@ -378,6 +378,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
+    await prefs.remove('user_id'); // ✅ Also remove user_id
   }
 
   static Future<bool> isLoggedIn() async {
@@ -388,6 +389,12 @@ class AuthService {
   static Future<void> saveUserData(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userKey, jsonEncode(userData));
+    
+    // ✅ Also save user_id separately for easy access
+    if (userData['id'] != null) {
+      await prefs.setString('user_id', userData['id']);
+      print('✅ Saved user_id to SharedPreferences: ${userData['id']}');
+    }
   }
 
   static Future<Map<String, dynamic>?> getUserData() async {

@@ -1,26 +1,26 @@
 class User {
   final String id;
-  final String email;
-  final String name;
-  final String? role;
+  final String username;
+  final String fullName;
+  final String? userType;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
   User({
     required this.id,
-    required this.email,
-    required this.name,
-    this.role,
+    required this.username,
+    required this.fullName,
+    this.userType,
     required this.createdAt,
     this.updatedAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] ?? json['_id'] ?? '',
-      email: json['email'] ?? '',
-      name: json['name'] ?? '',
-      role: json['role'],
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      username: json['username'] ?? '',
+      fullName: json['full_name'] ?? '',
+      userType: json['user_type'],
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -32,9 +32,9 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'email': email,
-      'name': name,
-      'role': role,
+      'username': username,
+      'full_name': fullName,
+      'user_type': userType,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -42,17 +42,17 @@ class User {
 
   User copyWith({
     String? id,
-    String? email,
-    String? name,
-    String? role,
+    String? username,
+    String? fullName,
+    String? userType,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return User(
       id: id ?? this.id,
-      email: email ?? this.email,
-      name: name ?? this.name,
-      role: role ?? this.role,
+      username: username ?? this.username,
+      fullName: fullName ?? this.fullName,
+      userType: userType ?? this.userType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -60,7 +60,7 @@ class User {
 
   @override
   String toString() {
-    return 'User(id: $id, email: $email, name: $name, role: $role)';
+    return 'User(id: $id, username: $username, fullName: $fullName, userType: $userType)';
   }
 
   @override
@@ -69,13 +69,13 @@ class User {
 
     return other is User &&
         other.id == id &&
-        other.email == email &&
-        other.name == name &&
-        other.role == role;
+        other.username == username &&
+        other.fullName == fullName &&
+        other.userType == userType;
   }
 
   @override
   int get hashCode {
-    return id.hashCode ^ email.hashCode ^ name.hashCode ^ role.hashCode;
+    return id.hashCode ^ username.hashCode ^ fullName.hashCode ^ userType.hashCode;
   }
 }

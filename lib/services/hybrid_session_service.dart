@@ -12,123 +12,142 @@ class HybridSessionService {
 
   final SessionService _localService = SessionService();
 
-  /// Save session with automatic sync attempt
-  Future<void> saveSession(Session session) async {
+  /// Save session with automatic sync attempt - ERROR HANDLING REMOVED FOR DEBUGGING
+  /// Returns a map with sync status information
+  Future<Map<String, dynamic>> saveSession(Session session) async {
     print('=== Starting saveSession ===');
     print('Session ID: ${session.id}');
     print('Batch ID: ${session.batchId}');
 
-    // Always save locally first
+    bool savedLocally = false;
+    bool syncedToApi = false;
+    String? syncError;
+
+    // Always save locally first - NO ERROR HANDLING
+    print('Attempting to save session locally...');
     await _localService.saveSession(session);
+    savedLocally = true;
     print('✓ Session saved locally');
 
-    // Try to sync with API
-    try {
-      print('Checking connection...');
-      final isConnected = await ApiService.checkConnection();
-      print('Connection status: $isConnected');
+    // Try to sync with API - NO ERROR HANDLING
+    print('Checking connection...');
+    final isConnected = await ApiService.checkConnection();
+    print('Connection status: $isConnected');
 
-      if (isConnected) {
-        print('Attempting to create session on API...');
-        final result = await ApiService.createSession(session);
-        print('✓ Session created on API: $result');
-        await _markAsSynced(session.id);
-        print('✓ Session marked as synced');
-      } else {
-        print('⚠ Device is offline, marking as unsynced');
-        await _markAsUnsynced(session.id);
-      }
-    } catch (e, stackTrace) {
-      print('❌ Failed to sync session to API: $e');
-      print('Stack trace: $stackTrace');
+    if (isConnected) {
+      print('Attempting to create session on API...');
+      final result = await ApiService.createSession(session);
+      print('✓ Session created on API: $result');
+      await _markAsSynced(session.id);
+      syncedToApi = true;
+      print('✓ Session marked as synced');
+    } else {
+      print('⚠ Device is offline, marking as unsynced');
       await _markAsUnsynced(session.id);
-      rethrow; // Re-throw to see the error in the UI
+      syncError = 'No internet connection';
     }
+
+    return {
+      'savedLocally': savedLocally,
+      'syncedToApi': syncedToApi,
+      'syncError': syncError,
+    };
   }
 
-  /// Get all sessions (prioritize API if available, fallback to local)
+  /// Get all sessions (prioritize API if available, fallback to local) - ERROR HANDLING REMOVED
   Future<List<Session>> getAllSessions() async {
-    try {
-      final isConnected = await ApiService.checkConnection();
-      if (isConnected) {
-        final apiSessions = await ApiService.getAllSessions();
-        // Update local storage with API data
-        await _updateLocalFromApi(apiSessions);
-        return apiSessions;
-      }
-    } catch (e) {
-      print('Failed to fetch from API, using local data: $e');
+    print('=== Getting all sessions ===');
+    final isConnected = await ApiService.checkConnection();
+    print('Connection status: $isConnected');
+    
+    if (isConnected) {
+      print('Fetching sessions from API...');
+      final apiSessions = await ApiService.getAllSessions();
+      print('API sessions fetched: ${apiSessions.length}');
+      // Update local storage with API data
+      await _updateLocalFromApi(apiSessions);
+      return apiSessions;
     }
 
     // Fallback to local data
+    print('Using local data...');
     return await _localService.getAllSessions();
   }
 
-  /// Get sessions for a specific batch
+  /// Get sessions for a specific batch - ERROR HANDLING REMOVED
   Future<List<Session>> getBatchSessions(String batchId) async {
-    try {
-      final isConnected = await ApiService.checkConnection();
-      if (isConnected) {
-        return await ApiService.getBatchSessions(batchId);
-      }
-    } catch (e) {
-      print('Failed to fetch batch sessions from API: $e');
+    print('=== Getting batch sessions for: $batchId ===');
+    final isConnected = await ApiService.checkConnection();
+    print('Connection status: $isConnected');
+    
+    if (isConnected) {
+      print('Fetching batch sessions from API...');
+      return await ApiService.getBatchSessions(batchId);
     }
 
     // Fallback to local data
+    print('Using local data...');
     return await _localService.getBatchSessions(batchId);
   }
 
-  /// Get all batches
+  /// Get all batches - ERROR HANDLING REMOVED
   Future<dynamic> getAllBatches() async {
-    try {
-      final isConnected = await ApiService.checkConnection();
-      if (isConnected) {
-        // API now returns List<Batch>
-        return await ApiService.getAllBatches();
-      }
-    } catch (e) {
-      print('Failed to fetch batches from API: $e');
+    print('=== Getting all batches ===');
+    final isConnected = await ApiService.checkConnection();
+    print('Connection status: $isConnected');
+    
+    if (isConnected) {
+      print('Fetching batches from API...');
+      // API now returns List<Batch>
+      return await ApiService.getAllBatches();
     }
 
     // Fallback to local data (returns Map<String, dynamic>)
+    print('Using local data...');
     return await _localService.getAllBatches();
   }
 
-  /// Sync all local data with the API
+  /// Sync all local data with the API - ERROR HANDLING REMOVED
   Future<bool> syncAllData() async {
-    try {
-      final isConnected = await ApiService.checkConnection();
-      if (!isConnected) {
-        return false;
-      }
-
-      // Get all local sessions
-      final localSessions = await _localService.getAllSessions();
-      final unsyncedSessions = await _getUnsyncedSessions(localSessions);
-
-      if (unsyncedSessions.isNotEmpty) {
-        // Sync unsynced sessions
-        for (final session in unsyncedSessions) {
-          try {
-            await ApiService.createSession(session);
-            await _markAsSynced(session.id);
-          } catch (e) {
-            print('Failed to sync session ${session.id}: $e');
-          }
-        }
-      }
-
-      // Get latest data from API and update local storage
-      final apiSessions = await ApiService.getAllSessions();
-      await _updateLocalFromApi(apiSessions);
-
-      await _updateLastSyncTime();
-      return true;
-    } catch (e) {
-      print('Sync failed: $e');
+    print('=== Syncing all data ===');
+    final isConnected = await ApiService.checkConnection();
+    print('Connection status: $isConnected');
+    
+    if (!isConnected) {
+      print('No connection, aborting sync');
       return false;
     }
+
+    // Get all local sessions
+    print('Getting local sessions...');
+    final localSessions = await _localService.getAllSessions();
+    print('Local sessions count: ${localSessions.length}');
+    
+    final unsyncedSessions = await _getUnsyncedSessions(localSessions);
+    print('Unsynced sessions count: ${unsyncedSessions.length}');
+
+    if (unsyncedSessions.isNotEmpty) {
+      // Sync unsynced sessions - NO ERROR HANDLING
+      for (final session in unsyncedSessions) {
+        print('Syncing session: ${session.id}');
+        await ApiService.createSession(session);
+        await _markAsSynced(session.id);
+        print('Session synced: ${session.id}');
+      }
+    }
+
+    // Get latest data from API and update local storage
+    print('Fetching latest data from API...');
+    final apiSessions = await ApiService.getAllSessions();
+    print('API sessions fetched: ${apiSessions.length}');
+    
+    await _updateLocalFromApi(apiSessions);
+    print('Local storage updated');
+
+    await _updateLastSyncTime();
+    print('Last sync time updated');
+    print('=== Sync completed successfully ===');
+    return true;
   }
 
   /// Check if device is online and can connect to API
