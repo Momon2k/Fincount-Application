@@ -152,7 +152,7 @@ class _RegisterPageState extends State<RegisterPage>
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registration failed. Please try again.'),
+              content: Text('Registration failed Or Connection error.'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
