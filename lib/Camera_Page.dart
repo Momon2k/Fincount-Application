@@ -100,7 +100,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     try {
       final prefs = await SharedPreferences.getInstance();
       _currentUserId = prefs.getString('user_id');
-      
+
       if (_currentUserId == null) {
         print('Warning: No user_id found in SharedPreferences');
       } else {
@@ -341,28 +341,36 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   // Parse error messages to identify specific error types
   Map<String, dynamic> _parseError(dynamic error) {
     final errorString = error.toString().toLowerCase();
-    
-    if (errorString.contains('foreign key') || errorString.contains('foreignkeyviolation')) {
+
+    if (errorString.contains('foreign key') ||
+        errorString.contains('foreignkeyviolation')) {
       return {
         'type': 'foreign_key_violation',
         'title': 'Account Data Out of Sync',
-        'message': 'Your account information is not properly synchronized with the server. This usually happens after database updates.',
+        'message':
+            'Your account information is not properly synchronized with the server. This usually happens after database updates.',
         'action': 're_login',
         'actionText': 'Log Out & Re-login',
       };
-    } else if (errorString.contains('user not found') || errorString.contains('user_id') && errorString.contains('not present')) {
+    } else if (errorString.contains('user not found') ||
+        errorString.contains('user_id') &&
+            errorString.contains('not present')) {
       return {
         'type': 'user_not_found',
         'title': 'User Authentication Issue',
-        'message': 'Your user account cannot be found in the database. Please log out and log back in.',
+        'message':
+            'Your user account cannot be found in the database. Please log out and log back in.',
         'action': 're_login',
         'actionText': 'Log Out & Re-login',
       };
-    } else if (errorString.contains('no internet') || errorString.contains('network') || errorString.contains('connection')) {
+    } else if (errorString.contains('no internet') ||
+        errorString.contains('network') ||
+        errorString.contains('connection')) {
       return {
         'type': 'network_error',
         'title': 'No Internet Connection',
-        'message': 'Your session has been saved locally and will sync automatically when you\'re back online.',
+        'message':
+            'Your session has been saved locally and will sync automatically when you\'re back online.',
         'action': 'retry',
         'actionText': 'Retry Now',
       };
@@ -370,11 +378,13 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return {
         'type': 'timeout',
         'title': 'Request Timeout',
-        'message': 'The server took too long to respond. Your session is saved locally.',
+        'message':
+            'The server took too long to respond. Your session is saved locally.',
         'action': 'retry',
         'actionText': 'Retry Sync',
       };
-    } else if (errorString.contains('unauthorized') || errorString.contains('401')) {
+    } else if (errorString.contains('unauthorized') ||
+        errorString.contains('401')) {
       return {
         'type': 'unauthorized',
         'title': 'Authentication Expired',
@@ -386,7 +396,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return {
         'type': 'unknown',
         'title': 'Session Save Error',
-        'message': 'An error occurred while saving the session. Data is saved locally.',
+        'message':
+            'An error occurred while saving the session. Data is saved locally.',
         'action': 'dismiss',
         'actionText': 'OK',
         'details': error.toString(),
@@ -404,12 +415,12 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
           title: Row(
             children: [
               Icon(
-                errorInfo['type'] == 'network_error' 
-                  ? Icons.wifi_off 
-                  : Icons.error_outline,
-                color: errorInfo['type'] == 'network_error' 
-                  ? Colors.orange 
-                  : Colors.red,
+                errorInfo['type'] == 'network_error'
+                    ? Icons.wifi_off
+                    : Icons.error_outline,
+                color: errorInfo['type'] == 'network_error'
+                    ? Colors.orange
+                    : Colors.red,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -441,7 +452,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                     ),
                     child: Text(
                       errorInfo['details'],
-                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      style: const TextStyle(
+                          fontSize: 11, fontFamily: 'monospace'),
                     ),
                   ),
                 ],
@@ -455,12 +467,14 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, size: 20, color: Colors.blue[700]),
+                      Icon(Icons.info_outline,
+                          size: 20, color: Colors.blue[700]),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Your session data is safe and saved locally.',
-                          style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.blue[900]),
                         ),
                       ),
                     ],
@@ -556,12 +570,12 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                   if (mounted) {
                     ScaffoldMessenger.of(context).clearSnackBars();
                   }
-                  
+
                   // Clear authentication tokens
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.remove('auth_token');
                   await prefs.remove('user_data');
-                  
+
                   if (mounted) {
                     // Navigate to login page
                     Navigator.of(context).pushNamedAndRemoveUntil(
@@ -612,7 +626,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     try {
       // Check connection first
       final isOnline = await _hybridSessionService.isOnline();
-      
+
       if (!isOnline) {
         if (mounted) {
           Navigator.of(context).pop(); // Close loading dialog
@@ -653,7 +667,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         if (mounted) {
           Navigator.of(context).pop(); // Close loading dialog
           Navigator.of(context).pop(); // Close review modal
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Row(
@@ -741,9 +755,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
       // Save using HybridSessionService (handles both local and API)
       final saveResult = await _hybridSessionService.saveSession(session);
-      
+
       print('Save result: $saveResult');
-      
+
       // Also save SessionModel for Hive (for local UI)
       final sessionModel = SessionModel(
         batchId: widget.batchId,
@@ -788,95 +802,98 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             ..clearSnackBars() // Clear any existing snackbars
             ..showSnackBar(
               SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.save, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      syncError?.contains('internet') ?? false
-                          ? 'Session saved locally. Will sync when online.'
-                          : 'Session saved locally. Sync pending.',
+                content: Row(
+                  children: [
+                    const Icon(Icons.save, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        syncError?.contains('internet') ?? false
+                            ? 'Session saved locally. Will sync when online.'
+                            : 'Session saved locally. Sync pending.',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-              action: SnackBarAction(
-                label: 'Details',
-                textColor: Colors.white,
-                onPressed: () {
-                  // Show more info about the sync error
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Row(
-                        children: [
-                          Icon(Icons.info_outline, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text('Sync Status'),
-                        ],
-                      ),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '✓ Session saved locally',
-                            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            '⚠ Cloud sync pending',
-                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 16),
-                          if (syncError != null)
-                            Text('Reason: $syncError'),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[50],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Your data is safe! The app will automatically sync to the cloud when you\'re back online.',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('OK'),
+                  ],
+                ),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+                action: SnackBarAction(
+                  label: 'Details',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    // Show more info about the sync error
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue),
+                            SizedBox(width: 8),
+                            Text('Sync Status'),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                },
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '✓ Session saved locally',
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              '⚠ Cloud sync pending',
+                              style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 16),
+                            if (syncError != null) Text('Reason: $syncError'),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Your data is safe! The app will automatically sync to the cloud when you\'re back online.',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          );
+            );
         } else {
           // This shouldn't happen, but handle it
           ScaffoldMessenger.of(context)
             ..clearSnackBars() // Clear any existing snackbars
             ..showSnackBar(
               const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.save, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text('Session processed')),
-                ],
+                content: Row(
+                  children: [
+                    Icon(Icons.save, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('Session processed')),
+                  ],
+                ),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 2),
               ),
-              backgroundColor: Colors.blue,
-              duration: Duration(seconds: 2),
-            ),
-          );
+            );
         }
 
         Navigator.pushNamedAndRemoveUntil(
@@ -887,11 +904,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       }
     } catch (e) {
       print('Camera Page: Error saving session: $e');
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Close loading dialog
         Navigator.of(context).pop(); // Close the review modal
-        
+
         // Show error message but still navigate to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
